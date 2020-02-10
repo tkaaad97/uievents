@@ -1,0 +1,8 @@
+.stack
+.stack/
+.stack-work/
+*.cabal
+*~
+*.swp
+.stylish-haskell.yaml
+.vscode

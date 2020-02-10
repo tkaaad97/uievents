@@ -1,0 +1,26 @@
+name:                uievents
+version:             0.1.0.0
+license:             BSD3
+
+description:         Please see the README on GitHub at <https://github.com/githubuser/uievents#readme>
+
+dependencies:
+- base >= 4.10 && < 5
+- linear
+- hashable
+- hashtables
+- vector
+
+library:
+  source-dirs: src
+
+tests:
+  uievents-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - uievents
