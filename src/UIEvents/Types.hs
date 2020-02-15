@@ -1,21 +1,27 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module UIEvents.Types
-    (
+    ( UIElementId(..)
+    , UIEvent(..)
+    , Location(..)
+    , CaptureHandler
+    , TargetHandler
+    , BubbleHandler
+    , UIEntity(..)
+    , UIElement(..)
+    , UIElementHandlers(..)
+    , UIEventDispatcher(..)
     ) where
 
+import Data.Atomics.Counter (AtomicCounter)
 import Data.Hashable (Hashable)
-import Data.IORef (IORef, newIORef)
-import Data.Proxy (Proxy(..))
-import qualified Data.Vector.Mutable as MBV (IOVector, MVector)
+import qualified Data.Vector.Mutable as MBV (MVector)
 import qualified Data.Vector.Storable as SV (Vector)
 import Foreign (Storable)
 import Linear (V2(..))
-import qualified UIEvents.Internal.Component as Component (ComponentStore,
-                                                           addComponent,
-                                                           newComponentStore)
+import qualified UIEvents.Internal.Component as Component (ComponentStore)
 
 newtype UIElementId = UIElementId Int
-    deriving (Show, Eq, Ord, Enum, Hashable, Num, Storable)
+    deriving (Show, Eq, Ord, Enum, Bounded, Hashable, Num, Storable)
 
 data UIEvent a = UIEvent a
     deriving (Show, Eq)
@@ -49,36 +55,10 @@ data UIElementHandlers a b = UIElementHandlers
     }
 
 data UIEventDispatcher a b = UIEventDispatcher
-    { uieventDispatcherRoot     :: !UIElementId
+    { uieventDispatcherElementCounter :: !AtomicCounter
+    , uieventDispatcherRoot     :: !UIElementId
     , uieventDispatcherElements :: !(Component.ComponentStore MBV.MVector UIElementId (UIEntity a b))
-    , uieventDispatcherElementCounter :: !(IORef UIElementId)
     }
 
 instance Show (UIElementHandlers a b) where
     show _ = "UIElementHandlers {}"
-
-newUIEventDispatcher :: Proxy a -> UIElement b -> IO (UIEventDispatcher a b)
-newUIEventDispatcher _ rootElem = do
-    let rootId = UIElementId 1
-        rootEntity = UIEntity rootId mempty Nothing rootElem rootHandlers
-        counter = UIElementId 2
-    store <- Component.newComponentStore 10 (Proxy :: Proxy (MBV.IOVector (UIEntity a b)))
-    counterRef <- newIORef counter
-    Component.addComponent store rootId rootEntity
-    return (UIEventDispatcher rootId store counterRef)
-    where
-    rootHandlers = UIElementHandlers rootCapture rootTarget rootBubble
-    rootCapture _ _ = return True
-    rootTarget _ _ = return Nothing
-    rootBubble _ _ = return False
-
---capturePhase :: UIEventDispatcher -> UIEvent -> IO (Maybe (UIElement a))
---targetPhase
---bubblePhase
---addUIElement
---removeUIElement
---sliceUIElement
---modifyUIElement
---unsafeSliceUIElement
---clearUIElements
---foldUIElements :: UIEventDispather -> (UIEntity -> a -> b -> MaybeT IO (a, b)) -> a -> b -> MaybeT IO b

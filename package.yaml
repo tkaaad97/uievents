@@ -6,10 +6,21 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base >= 4.10 && < 5
+- atomic-primops
 - linear
 - hashable
 - hashtables
 - vector
+
+ghc-options:
+- -Wall
+- -Wcompat
+- -Widentities
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+- -Wpartial-fields
+- -Wredundant-constraints
+- -Wtabs
 
 library:
   source-dirs: src
@@ -24,3 +35,4 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - uievents
+    - hspec
