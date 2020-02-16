@@ -14,8 +14,8 @@ module UIEvents.Types
 
 import Data.Atomics.Counter (AtomicCounter)
 import Data.Hashable (Hashable)
+import qualified Data.Vector as BV (Vector)
 import qualified Data.Vector.Mutable as MBV (MVector)
-import qualified Data.Vector.Storable as SV (Vector)
 import Foreign (Storable)
 import Linear (V2(..))
 import qualified UIEvents.Internal.Component as Component (ComponentStore)
@@ -37,7 +37,7 @@ type BubbleHandler a b = UIEntity a b -> UIEvent a -> IO Bool
 
 data UIEntity a b = UIEntity
     { uientityId       :: !UIElementId
-    , uientityChildren :: !(SV.Vector UIElementId)
+    , uientityChildren :: !(BV.Vector UIElementId)
     , uientityParent   :: !(Maybe UIElementId)
     , uientityContent  :: !(UIElement b)
     , uientityHandlers :: !(UIElementHandlers a b)

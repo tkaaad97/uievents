@@ -10,6 +10,7 @@ dependencies:
 - linear
 - hashable
 - hashtables
+- transformers
 - vector
 
 ghc-options:
