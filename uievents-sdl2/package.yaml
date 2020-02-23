@@ -1,0 +1,23 @@
+name:                uievents-sdl2
+version:             0.1.0.0
+license:             BSD3
+
+description:         Please see the README on GitHub at <https://github.com/githubuser/uievents#readme>
+
+dependencies:
+- base >= 4.10 && < 5
+- uievents
+- sdl2
+
+ghc-options:
+- -Wall
+- -Wcompat
+- -Widentities
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+- -Wpartial-fields
+- -Wredundant-constraints
+- -Wtabs
+
+library:
+  source-dirs: src
