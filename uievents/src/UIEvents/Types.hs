@@ -2,14 +2,25 @@
 module UIEvents.Types
     ( UIElementId(..)
     , UIEvent(..)
+    , UIEventPayload(..)
     , Location(..)
     , CaptureHandler
     , TargetHandler
     , BubbleHandler
+    , Timestamp(..)
     , UIEntity(..)
     , UIElement(..)
     , UIElementHandlers(..)
     , UIEventDispatcher(..)
+    , WindowResizeEvent(..)
+    , WindowCloseEvent(..)
+    , MouseMotionEvent(..)
+    , MouseButtonEvent(..)
+    , MouseButtonEventType(..)
+    , MouseButton(..)
+    , KeyboardEvent(..)
+    , KeyboardEventType(..)
+    , Keycode(..)
     ) where
 
 import Data.Atomics.Counter (AtomicCounter)
@@ -24,12 +35,12 @@ import qualified UIEvents.Internal.Component as Component (ComponentStore)
 newtype UIElementId = UIElementId Int
     deriving (Show, Eq, Ord, Enum, Bounded, Hashable, Num, Storable)
 
-newtype TimeStamp = TimeStamp
-    { unTimeStamp :: Int64
+newtype Timestamp = Timestamp
+    { unTimestamp :: Int64
     } deriving (Show, Eq)
 
 data UIEvent = UIEvent
-    { uieventTimestamp :: !TimeStamp
+    { uieventTimestamp :: !Timestamp
     , uieventPayload   :: !UIEventPayload
     } deriving (Show, Eq)
 
@@ -57,14 +68,14 @@ data MouseMotionEvent = MouseMotionEvent
 data MouseButtonEvent = MouseButtonEvent
     { mouseButtonEventType     :: !MouseButtonEventType
     , mouseButtonEventButton   :: !MouseButton
-    , mouseButtonEevntPosition :: !(V2 Int32)
+    , mouseButtonEventPosition :: !(V2 Int32)
     } deriving (Show, Eq)
 
 data MouseButton =
     MouseButtonLeft |
     MouseButtonMiddle |
     MouseButtonRight |
-    MouseButtonOther !Int32
+    MouseButtonExtra !Int32
     deriving (Show, Eq)
 
 data MouseButtonEventType =
