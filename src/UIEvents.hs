@@ -28,17 +28,17 @@ import qualified Data.Vector as BV (Vector, filter, foldM', mapM, mapM_, snoc,
 import qualified Data.Vector.Mutable as MBV (IOVector)
 import UIEvents.Types
 
-updateUIEntityContent :: UIEntity a b -> UIElement b -> UIEntity a b
+updateUIEntityContent :: UIEntity a -> UIElement a -> UIEntity a
 updateUIEntityContent entity element = modifyUIEntityContent (const element) entity
 
-modifyUIEntityContent :: (UIElement b -> UIElement b) -> UIEntity a b -> UIEntity a b
+modifyUIEntityContent :: (UIElement a -> UIElement a) -> UIEntity a -> UIEntity a
 modifyUIEntityContent f entity = entity { uientityContent = f . uientityContent $ entity }
 
-newUIEventDispatcher :: Proxy a -> UIElement b -> IO (UIEventDispatcher a b)
+newUIEventDispatcher :: Proxy a -> UIElement a -> IO (UIEventDispatcher a)
 newUIEventDispatcher _ rootElem = do
     let rootId = UIElementId 1
         rootEntity = UIEntity rootId mempty Nothing rootElem rootHandlers
-    store <- Component.newComponentStore 10 (Proxy :: Proxy (MBV.IOVector (UIEntity a b)))
+    store <- Component.newComponentStore 10 (Proxy :: Proxy (MBV.IOVector (UIEntity a)))
     Component.addComponent store rootId rootEntity
     counter <- Counter.newCounter 1
     return (UIEventDispatcher counter rootId store)
@@ -48,7 +48,7 @@ newUIEventDispatcher _ rootElem = do
     rootTarget _ _ = return Nothing
     rootBubble _ _ = return False
 
-addUIElement :: UIEventDispatcher a b -> UIElementId -> UIElement b -> UIElementHandlers a b -> IO UIElementId
+addUIElement :: UIEventDispatcher a -> UIElementId -> UIElement a -> UIElementHandlers a -> IO UIElementId
 addUIElement dispatcher parent element handlers = do
     elemId <- UIElementId <$> Counter.incrCounter 1 counter
     let entity = UIEntity elemId mempty (Just parent) element handlers
@@ -62,13 +62,13 @@ addUIElement dispatcher parent element handlers = do
     addChild c e =
         e { uientityChildren = uientityChildren e `BV.snoc` c }
 
-modifyUIElement :: UIEventDispatcher a b -> (UIElement b -> UIElement b) -> UIElementId -> IO Bool
+modifyUIElement :: UIEventDispatcher a -> (UIElement a -> UIElement a) -> UIElementId -> IO Bool
 modifyUIElement dispatcher f =
     Component.modifyComponent store (modifyUIEntityContent f)
     where
     store = uieventDispatcherElements dispatcher
 
-removeUIElement :: UIEventDispatcher a b -> UIElementId -> IO ()
+removeUIElement :: UIEventDispatcher a -> UIElementId -> IO ()
 removeUIElement dispatcher elemId = do
     e <- maybe (throwIO . userError $ "element not found: " ++ show elemId) return =<< Component.readComponent store elemId
     BV.mapM_ (removeUIElement_ dispatcher) . uientityChildren $ e
@@ -81,7 +81,7 @@ removeUIElement dispatcher elemId = do
     removeChild e =
         e { uientityChildren = BV.filter (/= elemId) $ uientityChildren e }
 
-removeUIElement_ :: UIEventDispatcher a b -> UIElementId -> IO ()
+removeUIElement_ :: UIEventDispatcher a -> UIElementId -> IO ()
 removeUIElement_ dispatcher elemId = do
     e <- maybe (throwIO . userError $ "element not found: " ++ show elemId) return =<< Component.readComponent store elemId
     BV.mapM_ (removeUIElement_ dispatcher) . uientityChildren $ e
@@ -90,14 +90,14 @@ removeUIElement_ dispatcher elemId = do
     where
     store = uieventDispatcherElements dispatcher
 
-sliceUIEntities :: UIEventDispatcher a b -> IO (BV.Vector (UIEntity a b))
+sliceUIEntities :: UIEventDispatcher a -> IO (BV.Vector (UIEntity a))
 sliceUIEntities dispatcher = do
     (v, n) <- Component.unsafeGetComponentVector store
     return $ BV.take n v
     where
     store = uieventDispatcherElements dispatcher
 
-foldUIEntities :: MonadIO m => UIEventDispatcher a b -> (UIEntity a b -> x -> y -> MaybeT m (x, y)) -> x -> y -> MaybeT m y
+foldUIEntities :: MonadIO m => UIEventDispatcher a -> (UIEntity a -> x -> y -> MaybeT m (x, y)) -> x -> y -> MaybeT m y
 foldUIEntities dispatcher f x y = do
     root <- MaybeT . liftIO . Component.readComponent store $ rootId
     go x y root
@@ -110,7 +110,7 @@ foldUIEntities dispatcher f x y = do
         entities <- BV.mapM (MaybeT . liftIO . Component.readComponent store) elemIds
         BV.foldM' (go x1) y1 entities
 
-capturePhase :: UIEventDispatcher a b -> UIEvent a -> IO [UIEntity a b]
+capturePhase :: UIEventDispatcher a -> UIEvent -> IO [UIEntity a]
 capturePhase dispatcher event = flip State.execStateT [] . runMaybeT $ foldUIEntities dispatcher f () ()
     where
     f entity _ _ = do
@@ -120,7 +120,7 @@ capturePhase dispatcher event = flip State.execStateT [] . runMaybeT $ foldUIEnt
             then lift $ State.modify (entity :) >> return ((), ())
             else MaybeT . return $ Nothing
 
-targetPhase :: UIEventDispatcher a b -> UIEntity a b -> UIEvent a -> IO ()
+targetPhase :: UIEventDispatcher a -> UIEntity a -> UIEvent -> IO ()
 targetPhase dispatcher entity event =
     maybe (return ()) update =<< handler entity event
     where
@@ -130,7 +130,7 @@ targetPhase dispatcher entity event =
         _ <- Component.modifyComponent store (`updateUIEntityContent` element) (uientityId entity)
         return ()
 
-bubblePhase :: UIEventDispatcher a b -> [UIEntity a b] -> UIEvent a -> IO ()
+bubblePhase :: UIEventDispatcher a -> [UIEntity a] -> UIEvent -> IO ()
 bubblePhase _ [] _ = return ()
 bubblePhase dispatcher (entity : es) event = do
     propagate <- handler entity event
@@ -138,10 +138,8 @@ bubblePhase dispatcher (entity : es) event = do
     where
     handler = bubbleHandler . uientityHandlers $ entity
 
-dispatchUIEvent :: UIEventDispatcher a b -> UIEvent a -> IO ()
+dispatchUIEvent :: UIEventDispatcher a -> UIEvent -> IO ()
 dispatchUIEvent dispatcher event = do
     es <- capturePhase dispatcher event
     targetPhase dispatcher (head es) event
     bubblePhase dispatcher es event
-
---modifyUIElement

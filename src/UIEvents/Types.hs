@@ -14,6 +14,7 @@ module UIEvents.Types
 
 import Data.Atomics.Counter (AtomicCounter)
 import Data.Hashable (Hashable)
+import Data.Int (Int32, Int64)
 import qualified Data.Vector as BV (Vector)
 import qualified Data.Vector.Mutable as MBV (MVector)
 import Foreign (Storable)
@@ -23,24 +24,81 @@ import qualified UIEvents.Internal.Component as Component (ComponentStore)
 newtype UIElementId = UIElementId Int
     deriving (Show, Eq, Ord, Enum, Bounded, Hashable, Num, Storable)
 
-data UIEvent a = UIEvent a
+data UIEvent = UIEvent
+    { uieventTimestamp :: !Int64
+    , uieventPayload   :: !UIEventPayload
+    } deriving (Show, Eq)
+
+data UIEventPayload =
+    WindowResizeEvent' WindowResizeEvent |
+    WindowCloseEvent' WindowCloseEvent |
+    MouseMotionEvent' MouseMotionEvent |
+    MouseButtonEvent' MouseButtonEvent |
+    KeyboardEvent' KeyboardEvent
+    deriving (Show, Eq)
+
+newtype WindowResizeEvent = WindowResizeEvent
+    { windowResizeEventSize :: V2 Int32
+    } deriving (Show, Eq)
+
+data WindowCloseEvent = WindowCloseEvent
+    deriving (Show, Eq)
+
+data MouseMotionEvent = MouseMotionEvent
+    { mouseMotionEventPosition :: !(V2 Int32)
+    , mouseMotionEventMovement :: !(V2 Int32)
+    , mouseMotionEventButtons  :: ![MouseButton]
+    } deriving (Show, Eq)
+
+data MouseButtonEvent = MouseButtonEvent
+    { mouseButtonEventType     :: !MouseButtonEventType
+    , mouseButtonEventButton   :: !MouseButton
+    , mouseButtonEevntPosition :: !(V2 Int32)
+    } deriving (Show, Eq)
+
+data MouseButton =
+    MouseButtonLeft |
+    MouseButtonMiddle |
+    MouseButtonRight |
+    MouseButtonOther !Int32
+    deriving (Show, Eq)
+
+data MouseButtonEventType =
+    MouseButtonPressed |
+    MouseButtonReleased
+    deriving (Show, Eq, Enum)
+
+data KeyboardEvent = KeyboardEvent
+    { keyboardEventType :: !KeyboardEventType
+    , keyboardEventKey  :: !Keycode
+    } deriving (Show, Eq)
+
+newtype Keycode = Keycode
+    { unKeycode :: Int32
+    } deriving (Show, Eq)
+
+data KeyboardEventType =
+    KeyPressed |
+    KeyRepeated |
+    KeyReleased
     deriving (Show, Eq)
 
 data Location = Location
     { locationPosition :: !(V2 Double)
     , locationSize     :: !(V2 Double)
+    , locationRotation :: !Double
     } deriving (Show, Eq)
 
-type CaptureHandler a b = UIEntity a b -> UIEvent a -> IO Bool
-type TargetHandler a b = UIEntity a b -> UIEvent a -> IO (Maybe (UIElement b))
-type BubbleHandler a b = UIEntity a b -> UIEvent a -> IO Bool
+type CaptureHandler a = UIEntity a -> UIEvent -> IO Bool
+type TargetHandler a = UIEntity a -> UIEvent -> IO (Maybe (UIElement a))
+type BubbleHandler a = UIEntity a -> UIEvent -> IO Bool
 
-data UIEntity a b = UIEntity
+data UIEntity a = UIEntity
     { uientityId       :: !UIElementId
     , uientityChildren :: !(BV.Vector UIElementId)
     , uientityParent   :: !(Maybe UIElementId)
-    , uientityContent  :: !(UIElement b)
-    , uientityHandlers :: !(UIElementHandlers a b)
+    , uientityContent  :: !(UIElement a)
+    , uientityHandlers :: !(UIElementHandlers a)
     } deriving (Show)
 
 data UIElement b = UIElement
@@ -48,17 +106,17 @@ data UIElement b = UIElement
     , uielementValue    :: !b
     } deriving (Show, Eq)
 
-data UIElementHandlers a b = UIElementHandlers
-    { captureHandler :: !(CaptureHandler a b)
-    , targetHandler  :: !(TargetHandler a b)
-    , bubbleHandler  :: !(BubbleHandler a b)
+data UIElementHandlers a = UIElementHandlers
+    { captureHandler :: !(CaptureHandler a)
+    , targetHandler  :: !(TargetHandler a)
+    , bubbleHandler  :: !(BubbleHandler a)
     }
 
-data UIEventDispatcher a b = UIEventDispatcher
+data UIEventDispatcher a = UIEventDispatcher
     { uieventDispatcherElementCounter :: !AtomicCounter
     , uieventDispatcherRoot     :: !UIElementId
-    , uieventDispatcherElements :: !(Component.ComponentStore MBV.MVector UIElementId (UIEntity a b))
+    , uieventDispatcherElements :: !(Component.ComponentStore MBV.MVector UIElementId (UIEntity a))
     }
 
-instance Show (UIElementHandlers a b) where
+instance Show (UIElementHandlers a) where
     show _ = "UIElementHandlers {}"
