@@ -1,0 +1,11 @@
+version: "2"
+services:
+  app:
+    build: .
+    command: stack ghci
+    working_dir: $PWD
+    privileged: true
+    volumes:
+      - "$PWD:$PWD"
+      - .stack:/root/.stack
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
