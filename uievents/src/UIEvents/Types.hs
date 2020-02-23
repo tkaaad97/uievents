@@ -24,8 +24,12 @@ import qualified UIEvents.Internal.Component as Component (ComponentStore)
 newtype UIElementId = UIElementId Int
     deriving (Show, Eq, Ord, Enum, Bounded, Hashable, Num, Storable)
 
+newtype TimeStamp = TimeStamp
+    { unTimeStamp :: Int64
+    } deriving (Show, Eq)
+
 data UIEvent = UIEvent
-    { uieventTimestamp :: !Int64
+    { uieventTimestamp :: !TimeStamp
     , uieventPayload   :: !UIEventPayload
     } deriving (Show, Eq)
 

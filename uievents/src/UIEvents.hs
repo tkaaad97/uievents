@@ -1,5 +1,6 @@
 module UIEvents
-    ( newUIEventDispatcher
+    ( module UIEvents.Types
+    , newUIEventDispatcher
     , addUIElement
     , removeUIElement
     , modifyUIElement
