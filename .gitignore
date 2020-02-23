@@ -4,5 +4,11 @@
 *.cabal
 *~
 *.swp
+*.o
+*.so
+docker-compose.override.yml
+.nvimrc
+.vimrc
 .stylish-haskell.yaml
 .vscode
+.ghcid
