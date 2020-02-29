@@ -5,6 +5,8 @@ services:
     command: stack ghci
     working_dir: $PWD
     privileged: true
+    environment:
+      - DISPLAY=${DISPLAY}
     volumes:
       - "$PWD:$PWD"
       - .stack:/root/.stack
