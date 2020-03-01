@@ -7,6 +7,7 @@ module UIEvents
     , sliceUIEntities
     , foldUIEntities
     , dispatchUIEvent
+    , defaultHandlers
     ) where
 
 import Control.Exception (throwIO)
@@ -16,6 +17,7 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT(..))
 import qualified Control.Monad.Trans.State.Strict as State (execStateT, modify)
 import qualified Data.Atomics.Counter as Counter (incrCounter, newCounter)
+import Data.Int (Int32)
 import qualified UIEvents.Internal.Component as Component (addComponent,
                                                            modifyComponent,
                                                            newComponentStore,
@@ -27,6 +29,7 @@ import Data.Proxy (Proxy(..))
 import qualified Data.Vector as BV (Vector, filter, foldM', mapM, mapM_, snoc,
                                     take)
 import qualified Data.Vector.Mutable as MBV (IOVector)
+import Linear (V2(..), V3(..), (!*))
 import UIEvents.Types
 
 updateUIEntityContent :: UIEntity a -> UIElement a -> UIEntity a
@@ -35,8 +38,8 @@ updateUIEntityContent entity element = modifyUIEntityContent (const element) ent
 modifyUIEntityContent :: (UIElement a -> UIElement a) -> UIEntity a -> UIEntity a
 modifyUIEntityContent f entity = entity { uientityContent = f . uientityContent $ entity }
 
-newUIEventDispatcher :: Proxy a -> UIElement a -> IO (UIEventDispatcher a)
-newUIEventDispatcher _ rootElem = do
+newUIEventDispatcher :: UIElement a -> IO (UIEventDispatcher a)
+newUIEventDispatcher rootElem = do
     let rootId = UIElementId 1
         rootEntity = UIEntity rootId mempty Nothing rootElem rootHandlers
     store <- Component.newComponentStore 10 (Proxy :: Proxy (MBV.IOVector (UIEntity a)))
@@ -144,3 +147,24 @@ dispatchUIEvent dispatcher event = do
     es <- capturePhase dispatcher event
     targetPhase dispatcher (head es) event
     bubblePhase dispatcher es event
+
+defaultHandlers :: UIElementHandlers a
+defaultHandlers = UIElementHandlers ch th bh
+    where
+    ch _ (UIEvent _ (WindowResizeEvent' _))  = return True
+    ch _ (UIEvent _ (WindowCloseEvent' _))  = return True
+    ch e (UIEvent _ (MouseMotionEvent' ev)) = return $ insideLocation (mouseMotionEventPosition ev) (uielementLocation . uientityContent $ e)
+    ch e (UIEvent _ (MouseButtonEvent' ev)) = return $ insideLocation (mouseButtonEventPosition ev) (uielementLocation . uientityContent $ e)
+    ch _ (UIEvent _ (KeyboardEvent' _))     = return True
+
+    th _ _ = return Nothing
+
+    bh _ _ = return True
+
+insideLocation :: V2 Int32 -> Location -> Bool
+insideLocation (V2 px py) (Location (V2 x y) (V2 width height) theta) =
+    px' >= 0 && px' <= width && py' >= 0 && py' <= height
+    where
+    m = V2 (V3 (cos (-theta)) (- sin (-theta)) (-x))
+           (V3 (sin (-theta)) (cos (-theta)) (-y))
+    V2 px' py' = m !* V3 (fromIntegral px) (fromIntegral py) 1
