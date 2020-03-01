@@ -35,4 +35,5 @@ executables:
     - uievents-sdl2
     - linear
     - text
+    - transformers
     - StateVar

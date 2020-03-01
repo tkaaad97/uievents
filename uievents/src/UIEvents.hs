@@ -11,7 +11,7 @@ module UIEvents
     ) where
 
 import Control.Exception (throwIO)
-import Control.Monad (unless, when)
+import Control.Monad (mzero, unless, when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT(..))
@@ -58,7 +58,7 @@ addUIElement dispatcher parent element handlers = do
     let entity = UIEntity elemId mempty (Just parent) element handlers
     Component.addComponent store elemId entity
     r <- Component.modifyComponent store (addChild elemId) parent
-    when r . throwIO . userError $ "element not found: " ++ show parent
+    unless r . throwIO . userError $ "element not found: " ++ show parent
     return elemId
     where
     counter = uieventDispatcherElementCounter dispatcher
@@ -115,14 +115,15 @@ foldUIEntities dispatcher f x y = do
         BV.foldM' (go x1) y1 entities
 
 capturePhase :: UIEventDispatcher a -> UIEvent -> IO [UIEntity a]
-capturePhase dispatcher event = flip State.execStateT [] . runMaybeT $ foldUIEntities dispatcher f () ()
+capturePhase dispatcher event = flip State.execStateT [] . runMaybeT $ foldUIEntities dispatcher f True ()
     where
-    f entity _ _ = do
+    f entity True _ = do
         let handler = captureHandler . uientityHandlers $ entity
         captured <- liftIO $ handler entity event
         if captured
-            then lift $ State.modify (entity :) >> return ((), ())
-            else MaybeT . return $ Nothing
+            then lift $ State.modify (entity :) >> return (True, ())
+            else return (False, ())
+    f _ False _ = mzero
 
 targetPhase :: UIEventDispatcher a -> UIEntity a -> UIEvent -> IO ()
 targetPhase dispatcher entity event =
@@ -155,7 +156,7 @@ defaultHandlers = UIElementHandlers ch th bh
     ch _ (UIEvent _ (WindowCloseEvent' _))  = return True
     ch e (UIEvent _ (MouseMotionEvent' ev)) = return $ insideLocation (mouseMotionEventPosition ev) (uielementLocation . uientityContent $ e)
     ch e (UIEvent _ (MouseButtonEvent' ev)) = return $ insideLocation (mouseButtonEventPosition ev) (uielementLocation . uientityContent $ e)
-    ch _ (UIEvent _ (KeyboardEvent' _))     = return True
+    ch _ (UIEvent _ (KeyboardEvent' _))     = return False
 
     th _ _ = return Nothing
 
