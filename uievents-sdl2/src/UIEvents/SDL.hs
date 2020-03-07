@@ -7,6 +7,7 @@ module UIEvents.SDL
     , waitEventTimeoutDispatch
     ) where
 
+import Data.Foldable (foldlM)
 import Data.Maybe (maybe)
 import Foreign.C.Types (CInt)
 import qualified SDL (Event(..), EventPayload(..), InputMotion(..),
@@ -72,24 +73,27 @@ convertMouseButton SDL.ButtonX1             = UIEvents.MouseButtonExtra 3
 convertMouseButton SDL.ButtonX2             = UIEvents.MouseButtonExtra 4
 convertMouseButton (SDL.ButtonExtra button) = UIEvents.MouseButtonExtra (fromIntegral button)
 
-dispatchEvent :: UIEvents.UIEventDispatcher a -> (SDL.Event -> IO ()) -> SDL.Event -> IO ()
+dispatchEvent :: UIEvents.UIEventDispatcher a -> (SDL.Event -> IO UIEvents.DispatchResult) -> SDL.Event -> IO UIEvents.DispatchResult
 dispatchEvent dispatcher restHandler e = go (convertEvent e)
     where
     go (Just event) = UIEvents.dispatchUIEvent dispatcher event
     go _            = restHandler e
 
-pollEventDispatch :: UIEvents.UIEventDispatcher a -> (SDL.Event -> IO ()) -> IO ()
+pollEventDispatch :: UIEvents.UIEventDispatcher a -> (SDL.Event -> IO UIEvents.DispatchResult) -> IO (Maybe UIEvents.DispatchResult)
 pollEventDispatch dispatcher restHandler =
-    SDL.pollEvent >>= maybe (return ()) (dispatchEvent dispatcher restHandler)
+    SDL.pollEvent >>= maybe (return Nothing) (fmap Just . dispatchEvent dispatcher restHandler)
 
-pollEventsDispatch :: UIEvents.UIEventDispatcher a -> (SDL.Event -> IO ()) -> ([SDL.Event] -> [SDL.Event]) -> IO ()
+pollEventsDispatch :: UIEvents.UIEventDispatcher a -> (SDL.Event -> IO UIEvents.DispatchResult) -> ([SDL.Event] -> [SDL.Event]) -> IO UIEvents.DispatchResult
 pollEventsDispatch dispatcher restHandler filterEvent =
-    SDL.pollEvents >>= mapM_ (dispatchEvent dispatcher restHandler) . filterEvent
+    SDL.pollEvents >>= foldlM go UIEvents.DispatchContinue . filterEvent
+    where
+    go UIEvents.DispatchExit _     = return UIEvents.DispatchExit
+    go UIEvents.DispatchContinue e = dispatchEvent dispatcher restHandler e
 
-waitEventDispatch :: UIEvents.UIEventDispatcher a -> (SDL.Event -> IO ()) -> IO ()
+waitEventDispatch :: UIEvents.UIEventDispatcher a -> (SDL.Event -> IO UIEvents.DispatchResult) -> IO UIEvents.DispatchResult
 waitEventDispatch dispatcher restHandler =
     SDL.waitEvent >>= dispatchEvent dispatcher restHandler
 
-waitEventTimeoutDispatch :: UIEvents.UIEventDispatcher a -> (SDL.Event -> IO ()) -> CInt -> IO ()
+waitEventTimeoutDispatch :: UIEvents.UIEventDispatcher a -> (SDL.Event -> IO UIEvents.DispatchResult) -> CInt -> IO (Maybe UIEvents.DispatchResult)
 waitEventTimeoutDispatch dispatcher restHandler timeout =
-    SDL.waitEventTimeout timeout >>= maybe (return ()) (dispatchEvent dispatcher restHandler)
+    SDL.waitEventTimeout timeout >>= maybe (return Nothing) (fmap Just . dispatchEvent dispatcher restHandler)

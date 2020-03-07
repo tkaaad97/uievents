@@ -2,7 +2,6 @@
 module Main where
 
 import Control.Concurrent (threadDelay)
-import Control.Monad (forever)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.StateVar (($=))
@@ -10,9 +9,10 @@ import Data.Text (Text)
 import Data.Word (Word8)
 import Linear (V2(..), V4(..), (^+^))
 import qualified SDL
-import qualified UIEvents (Location(..), UIElement(..), UIElementHandlers(..),
-                           UIEntity(..), UIEvent(..), UIEventPayload(..),
-                           addUIElement, defaultHandlers, foldUIEntities,
+import qualified UIEvents (BubbleResult(..), DispatchResult(..), Location(..),
+                           UIElement(..), UIElementHandlers(..), UIEntity(..),
+                           UIEvent(..), UIEventPayload(..), addUIElement,
+                           defaultHandlers, foldUIEntities,
                            newUIEventDispatcher, uieventDispatcherRoot)
 import qualified UIEvents.SDL as UIEvents (pollEventDispatch)
 
@@ -26,17 +26,17 @@ main = withSDL . withWindow "uievent-sdl2:example" (640, 480) $ \w -> do
         e3 = UIEvents.UIElement (UIEvents.Location (V2 420 10) (V2 200 200) 0) (V4 0 0 255 255 :: V4 Word8)
         e4 = UIEvents.UIElement (UIEvents.Location (V2 10 10) (V2 80 80) 0) (V4 255 0 0 255 :: V4 Word8)
         e5 = UIEvents.UIElement (UIEvents.Location (V2 95 10) (V2 80 80) 0) (V4 0 255 0 255 :: V4 Word8)
-        targetHandler entity (UIEvents.UIEvent _ payload @ (UIEvents.MouseButtonEvent' _)) = do
+        bubbleHandler entity (UIEvents.UIEvent _ payload @ (UIEvents.MouseButtonEvent' _)) = do
             putStrLn $ show entity ++ " " ++ show payload
-            return Nothing
-        targetHandler _ _ = return Nothing
-        handlers = UIEvents.defaultHandlers { UIEvents.targetHandler = targetHandler }
+            return (UIEvents.Bubbled True Nothing)
+        bubbleHandler _ _ = return (UIEvents.Bubbled True Nothing)
+        handlers = UIEvents.defaultHandlers { UIEvents.bubbleHandler = bubbleHandler }
     elemId1 <- UIEvents.addUIElement dispatcher root e1 handlers
     _ <- UIEvents.addUIElement dispatcher root e2 handlers
     _ <- UIEvents.addUIElement dispatcher root e3 handlers
     _ <- UIEvents.addUIElement dispatcher elemId1 e4 handlers
     _ <- UIEvents.addUIElement dispatcher elemId1 e5 handlers
-    forever (tick dispatcher renderer)
+    eventLoop dispatcher renderer
 
     where
     withSDL a = SDL.initialize [] >> a >> SDL.quit
@@ -69,6 +69,13 @@ main = withSDL . withWindow "uievent-sdl2:example" (640, 480) $ \w -> do
         return (p1, ())
 
     tick dispatcher renderer = do
-        UIEvents.pollEventDispatch dispatcher (const $ return ())
-        _ <- runMaybeT $ draw renderer dispatcher
         threadDelay 50
+        r <- UIEvents.pollEventDispatch dispatcher (const $ return UIEvents.DispatchContinue)
+        _ <- runMaybeT $ draw renderer dispatcher
+        return r
+
+    eventLoop dispatcher renderer = do
+        r <- tick dispatcher renderer
+        case r of
+            Just UIEvents.DispatchExit -> putStrLn "dispatch exit"
+            _                          -> eventLoop dispatcher renderer

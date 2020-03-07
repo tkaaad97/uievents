@@ -4,8 +4,10 @@ module UIEvents.Types
     , UIEvent(..)
     , UIEventPayload(..)
     , Location(..)
+    , CaptureResult(..)
+    , BubbleResult(..)
+    , DispatchResult(..)
     , CaptureHandler
-    , TargetHandler
     , BubbleHandler
     , Timestamp(..)
     , UIEntity(..)
@@ -104,9 +106,23 @@ data Location = Location
     , locationRotation :: !Double
     } deriving (Show, Eq)
 
-type CaptureHandler a = UIEntity a -> UIEvent -> IO Bool
-type TargetHandler a = UIEntity a -> UIEvent -> IO (Maybe (UIElement a))
-type BubbleHandler a = UIEntity a -> UIEvent -> IO Bool
+data CaptureResult =
+    Captured !Bool |
+    Uncaptured
+    deriving (Show, Eq)
+
+data BubbleResult a =
+    Bubbled !Bool !(Maybe (UIElement a)) |
+    BubbledExit
+    deriving (Show, Eq)
+
+data DispatchResult =
+    DispatchContinue |
+    DispatchExit
+    deriving (Show, Eq)
+
+type CaptureHandler a = UIEntity a -> UIEvent -> IO CaptureResult
+type BubbleHandler a = UIEntity a -> UIEvent -> IO (BubbleResult a)
 
 data UIEntity a = UIEntity
     { uientityId       :: !UIElementId
@@ -123,7 +139,6 @@ data UIElement b = UIElement
 
 data UIElementHandlers a = UIElementHandlers
     { captureHandler :: !(CaptureHandler a)
-    , targetHandler  :: !(TargetHandler a)
     , bubbleHandler  :: !(BubbleHandler a)
     }
 
