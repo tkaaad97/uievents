@@ -11,26 +11,23 @@ module UIEvents
     ) where
 
 import Control.Exception (throwIO)
-import Control.Monad (mzero, unless, when)
+import Control.Monad (unless, when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Maybe (MaybeT(..))
-import qualified Control.Monad.Trans.State.Strict as State (execStateT, modify)
 import qualified Data.Atomics.Counter as Counter (incrCounter, newCounter)
 import Data.Int (Int32)
+import Data.Proxy (Proxy(..))
+import qualified Data.Vector as BV (Vector, filter, foldM', mapM, mapM_, snoc,
+                                    take)
+import qualified Data.Vector.Mutable as MBV (IOVector)
+import Linear (V2(..), V3(..), (!*))
 import qualified UIEvents.Internal.Component as Component (addComponent,
                                                            modifyComponent,
                                                            newComponentStore,
                                                            readComponent,
                                                            removeComponent,
                                                            unsafeGetComponentVector)
-
-import Data.Proxy (Proxy(..))
-import qualified Data.Vector as BV (Vector, filter, foldM', mapM, mapM_, snoc,
-                                    take)
-import qualified Data.Vector.Mutable as MBV (IOVector)
-import Linear (V2(..), V3(..), (!*))
 import UIEvents.Types
+
 
 updateUIEntityContent :: UIEntity a -> UIElement a -> UIEntity a
 updateUIEntityContent entity element = modifyUIEntityContent (const element) entity
@@ -101,29 +98,30 @@ sliceUIEntities dispatcher = do
     where
     store = uieventDispatcherElements dispatcher
 
-foldUIEntities :: MonadIO m => UIEventDispatcher a -> (UIEntity a -> x -> y -> MaybeT m (x, y)) -> x -> y -> MaybeT m y
+foldUIEntities :: MonadIO m => UIEventDispatcher a -> (UIEntity a -> x -> y -> m (x, y)) -> x -> y -> m y
 foldUIEntities dispatcher f x y = do
-    root <- MaybeT . liftIO . Component.readComponent store $ rootId
+    root <- readComponent rootId
     go x y root
     where
+    readComponent eid = liftIO (maybe (throwIO . userError $ "element not found: " ++ show eid) return =<< Component.readComponent store eid)
     rootId = uieventDispatcherRoot dispatcher
     store = uieventDispatcherElements dispatcher
     go x0 y0 entity = do
         (x1, y1) <- f entity x0 y0
         let elemIds = uientityChildren entity
-        entities <- BV.mapM (MaybeT . liftIO . Component.readComponent store) elemIds
+        entities <- BV.mapM readComponent elemIds
         BV.foldM' (go x1) y1 entities
 
 capturePhase :: UIEventDispatcher a -> UIEvent -> IO [UIEntity a]
-capturePhase dispatcher event = flip State.execStateT [] . runMaybeT $ foldUIEntities dispatcher f True ()
+capturePhase dispatcher event = foldUIEntities dispatcher f True []
     where
-    f entity True _ = do
+    f entity True xs = do
         let handler = captureHandler . uientityHandlers $ entity
         captured <- liftIO $ handler entity event
         if captured
-            then lift $ State.modify (entity :) >> return (True, ())
-            else return (False, ())
-    f _ False _ = mzero
+            then return (True, entity : xs)
+            else return (False, xs)
+    f _ False xs = return (False, xs)
 
 targetPhase :: UIEventDispatcher a -> UIEntity a -> UIEvent -> IO ()
 targetPhase dispatcher entity event =
