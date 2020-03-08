@@ -52,7 +52,9 @@ newUIEventDispatcher rootElem = do
     return (UIEventDispatcher counter rootId store)
     where
     rootHandlers = UIElementHandlers rootCapture rootBubble
-    rootCapture _ _ = return (Captured True)
+    rootCapture _ (UIEvent _ (WindowResizeEvent' _)) = return (Captured False)
+    rootCapture _ (UIEvent _ (WindowCloseEvent' _))  = return (Captured False)
+    rootCapture _ _                                  = return (Captured True)
     rootBubble _ (UIEvent _ (WindowCloseEvent' _)) = return BubbledExit
     rootBubble _ _ = return (Bubbled False Nothing)
 
