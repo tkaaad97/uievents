@@ -4,6 +4,7 @@ module UIEvents
     , addUIElement
     , removeUIElement
     , modifyUIElement
+    , setZIndex
     , sliceUIEntities
     , foldUIEntities
     , dispatchUIEvent
@@ -11,16 +12,19 @@ module UIEvents
     ) where
 
 import Control.Exception (throwIO)
-import Control.Monad (unless)
+import Control.Monad (mplus, msum, unless, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Atomics.Counter as Counter (incrCounter, newCounter)
 import Data.Int (Int32)
+import Data.Maybe (fromMaybe, maybe)
 import Data.Proxy (Proxy(..))
-import qualified Data.Vector as BV (Vector, filter, foldM', mapM, mapM_, snoc,
-                                    take)
-import qualified Data.Vector.Mutable as MBV (IOVector)
+import qualified Data.Vector as BV (Vector, filter, foldM', imapM_, length, map,
+                                    mapM, mapM_, snoc, take, unsafeFreeze)
+import qualified Data.Vector.Algorithms.Intro as VA (sortBy)
+import qualified Data.Vector.Mutable as MBV (IOVector, MVector, new, write)
 import Linear (V2(..), V3(..), (!*))
-import qualified UIEvents.Internal.Component as Component (addComponent,
+import qualified UIEvents.Internal.Component as Component (ComponentStore,
+                                                           addComponent,
                                                            modifyComponent,
                                                            newComponentStore,
                                                            readComponent,
@@ -32,13 +36,16 @@ import UIEvents.Types
 updateUIEntityContent :: UIEntity a -> UIElement a -> UIEntity a
 updateUIEntityContent entity element = modifyUIEntityContent (const element) entity
 
+setUIEntityUpdated :: UIEntity a -> Bool -> UIEntity a
+setUIEntityUpdated a b = a { uientityUpdated = b }
+
 modifyUIEntityContent :: (UIElement a -> UIElement a) -> UIEntity a -> UIEntity a
 modifyUIEntityContent f entity = entity { uientityContent = f . uientityContent $ entity }
 
 newUIEventDispatcher :: UIElement a -> IO (UIEventDispatcher a)
 newUIEventDispatcher rootElem = do
     let rootId = UIElementId 1
-        rootEntity = UIEntity rootId mempty Nothing rootElem rootHandlers
+        rootEntity = UIEntity rootId mempty Nothing rootElem 0 mempty rootHandlers False
     store <- Component.newComponentStore 10 (Proxy :: Proxy (MBV.IOVector (UIEntity a)))
     Component.addComponent store rootId rootEntity
     counter <- Counter.newCounter 1
@@ -52,9 +59,9 @@ newUIEventDispatcher rootElem = do
 addUIElement :: UIEventDispatcher a -> UIElementId -> UIElement a -> UIElementHandlers a -> IO UIElementId
 addUIElement dispatcher parent element handlers = do
     elemId <- UIElementId <$> Counter.incrCounter 1 counter
-    let entity = UIEntity elemId mempty (Just parent) element handlers
+    let entity = UIEntity elemId mempty (Just parent) element 0 mempty handlers False
     Component.addComponent store elemId entity
-    r <- Component.modifyComponent store (addChild elemId) parent
+    r <- Component.modifyComponent store (flip setUIEntityUpdated True . addChild elemId) parent
     unless r . throwIO . userError $ "element not found: " ++ show parent
     return elemId
     where
@@ -63,11 +70,26 @@ addUIElement dispatcher parent element handlers = do
     addChild c e =
         e { uientityChildren = uientityChildren e `BV.snoc` c }
 
-modifyUIElement :: UIEventDispatcher a -> (UIElement a -> UIElement a) -> UIElementId -> IO Bool
-modifyUIElement dispatcher f =
-    Component.modifyComponent store (modifyUIEntityContent f)
+modifyUIElement :: UIEventDispatcher a -> (UIElement a -> UIElement a) -> UIElementId -> IO ()
+modifyUIElement dispatcher f elemId = do
+    r <- Component.modifyComponent store (modifyUIEntityContent f) elemId
+    unless r . throwIO . userError $ "element not found: " ++ show elemId
     where
     store = uieventDispatcherElements dispatcher
+
+readComponent :: Component.ComponentStore MBV.MVector UIElementId (UIEntity a) -> UIElementId -> IO (UIEntity a)
+readComponent store eid = liftIO (maybe (throwIO . userError $ "element not found: " ++ show eid) return =<< Component.readComponent store eid)
+
+setZIndex :: UIEventDispatcher a -> UIElementId -> Int -> IO ()
+setZIndex dispatcher elemId z = do
+    _ <- Component.modifyComponent store f elemId
+    entity <- readComponent store elemId
+    case uientityParent entity of
+        Just parent -> void $ Component.modifyComponent store (`setUIEntityUpdated` True) parent
+        Nothing -> return ()
+    where
+    store = uieventDispatcherElements dispatcher
+    f a = a { uientityZIndex = z }
 
 removeUIElement :: UIEventDispatcher a -> UIElementId -> IO ()
 removeUIElement dispatcher elemId = do
@@ -100,29 +122,60 @@ sliceUIEntities dispatcher = do
 
 foldUIEntities :: MonadIO m => UIEventDispatcher a -> (UIEntity a -> x -> y -> m (x, y)) -> x -> y -> m y
 foldUIEntities dispatcher f x y = do
-    root <- readComponent rootId
+    root <- liftIO $ readComponent store rootId
     go x y root
     where
-    readComponent eid = liftIO (maybe (throwIO . userError $ "element not found: " ++ show eid) return =<< Component.readComponent store eid)
     rootId = uieventDispatcherRoot dispatcher
     store = uieventDispatcherElements dispatcher
     go x0 y0 entity = do
         (x1, y1) <- f entity x0 y0
         let elemIds = uientityChildren entity
-        entities <- BV.mapM readComponent elemIds
+        entities <- liftIO $ BV.mapM (readComponent store) elemIds
         BV.foldM' (go x1) y1 entities
 
 capturePhase :: UIEventDispatcher a -> UIEvent -> IO [UIEntity a]
-capturePhase dispatcher event = foldUIEntities dispatcher f True []
+capturePhase dispatcher event = do
+    root <- readComponent store rootId
+    fromMaybe [] <$> go [] root
     where
-    f entity True xs = do
+    rootId = uieventDispatcherRoot dispatcher
+    store = uieventDispatcherElements dispatcher
+
+    go xs entity = do
+        r <- f entity xs
+        case r of
+            Just (True, xs') -> do
+                children <- getZSortedChildren dispatcher entity
+                (`mplus` Just xs') . msum <$> BV.mapM (go xs') children
+            Just (False, xs') -> return $ Just xs'
+            Nothing -> return Nothing
+
+    f entity xs = do
         let handler = captureHandler . uientityHandlers $ entity
         captureResult <- liftIO $ handler entity event
         case captureResult of
-            Captured True  -> return (True, entity : xs)
-            Captured False -> return (False, entity : xs)
-            Uncaptured     -> return (False, xs)
-    f _ False xs = return (False, xs)
+            Captured True  -> return . Just $ (True, entity : xs)
+            Captured False -> return . Just $ (False, entity : xs)
+            Uncaptured     -> return Nothing
+
+getZSortedChildren :: UIEventDispatcher a -> UIEntity a -> IO (BV.Vector (UIEntity a))
+getZSortedChildren dispatcher entity
+    | uientityUpdated entity = do
+        entities <- MBV.new (BV.length children)
+        BV.imapM_ (\i e -> readComponent store e >>= MBV.write entities i) children
+        VA.sortBy compareZIndexDesc entities
+        freezed <- BV.unsafeFreeze entities
+        let zsortedChildren = BV.map uientityId freezed
+        _ <- Component.modifyComponent store (`updateZSortedChildren` zsortedChildren) (uientityId entity)
+        return freezed
+    | otherwise =
+        BV.mapM (readComponent store) (uientityZSortedChildren entity)
+    where
+    store = uieventDispatcherElements dispatcher
+    children = uientityChildren entity
+    compareZIndexDesc e1 e2 =
+        compare (uientityZIndex e2) (uientityZIndex e1)
+    updateZSortedChildren a b = a { uientityZSortedChildren = b, uientityUpdated = False }
 
 bubblePhase :: UIEventDispatcher a -> [UIEntity a] -> UIEvent -> IO DispatchResult
 bubblePhase _ [] _ = return DispatchContinue

@@ -12,6 +12,7 @@ dependencies:
 - hashtables
 - transformers
 - vector
+- vector-algorithms
 
 ghc-options:
 - -Wall

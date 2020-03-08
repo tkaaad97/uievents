@@ -125,11 +125,14 @@ type CaptureHandler a = UIEntity a -> UIEvent -> IO CaptureResult
 type BubbleHandler a = UIEntity a -> UIEvent -> IO (BubbleResult a)
 
 data UIEntity a = UIEntity
-    { uientityId       :: !UIElementId
-    , uientityChildren :: !(BV.Vector UIElementId)
-    , uientityParent   :: !(Maybe UIElementId)
-    , uientityContent  :: !(UIElement a)
-    , uientityHandlers :: !(UIElementHandlers a)
+    { uientityId              :: !UIElementId
+    , uientityChildren        :: !(BV.Vector UIElementId)
+    , uientityParent          :: !(Maybe UIElementId)
+    , uientityContent         :: !(UIElement a)
+    , uientityZIndex          :: !Int
+    , uientityZSortedChildren :: !(BV.Vector UIElementId)
+    , uientityHandlers        :: !(UIElementHandlers a)
+    , uientityUpdated         :: !Bool
     } deriving (Show)
 
 data UIElement b = UIElement
