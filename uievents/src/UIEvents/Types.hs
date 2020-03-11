@@ -136,8 +136,9 @@ data UIEntity a = UIEntity
     } deriving (Show)
 
 data UIElement b = UIElement
-    { uielementLocation :: !Location
-    , uielementValue    :: !b
+    { uielementValue    :: !b
+    , uielementLocation :: !Location
+    , uielementDisplay  :: !Bool
     } deriving (Show, Eq)
 
 data UIElementHandlers a = UIElementHandlers

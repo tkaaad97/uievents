@@ -2,6 +2,7 @@
 module Main where
 
 import Control.Concurrent (threadDelay)
+import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.StateVar (($=))
@@ -19,13 +20,13 @@ import qualified UIEvents.SDL as UIEvents (pollEventDispatch)
 main :: IO ()
 main = withSDL . withWindow "uievent-sdl2:example" (640, 480) $ \w -> do
     renderer <- SDL.createRenderer w (-1) SDL.defaultRenderer
-    dispatcher <- UIEvents.newUIEventDispatcher (UIEvents.UIElement (UIEvents.Location (V2 0 0) (V2 640 480) 0) (V4 255 255 255 255 :: V4 Word8))
+    dispatcher <- UIEvents.newUIEventDispatcher (UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 0 0) (V2 640 480) 0) True)
     let root = UIEvents.uieventDispatcherRoot dispatcher
-        e1 = UIEvents.UIElement (UIEvents.Location (V2 10 10) (V2 200 200) 0) (V4 255 0 0 255 :: V4 Word8)
-        e2 = UIEvents.UIElement (UIEvents.Location (V2 215 10) (V2 200 200) 0) (V4 0 255 0 255 :: V4 Word8)
-        e3 = UIEvents.UIElement (UIEvents.Location (V2 420 10) (V2 200 200) 0) (V4 0 0 255 255 :: V4 Word8)
-        e4 = UIEvents.UIElement (UIEvents.Location (V2 10 10) (V2 80 80) 0) (V4 255 0 0 255 :: V4 Word8)
-        e5 = UIEvents.UIElement (UIEvents.Location (V2 95 10) (V2 80 80) 0) (V4 0 255 0 255 :: V4 Word8)
+        e1 = UIEvents.UIElement (V4 255 0 0 255 :: V4 Word8) (UIEvents.Location (V2 10 10) (V2 200 200) 0) True
+        e2 = UIEvents.UIElement (V4 0 255 0 255 :: V4 Word8) (UIEvents.Location (V2 215 10) (V2 200 200) 0) True
+        e3 = UIEvents.UIElement (V4 0 0 255 255 :: V4 Word8) (UIEvents.Location (V2 420 10) (V2 200 200) 0) True
+        e4 = UIEvents.UIElement (V4 255 0 0 255 :: V4 Word8) (UIEvents.Location (V2 10 10) (V2 80 80) 0) True
+        e5 = UIEvents.UIElement (V4 0 255 0 255 :: V4 Word8) (UIEvents.Location (V2 95 10) (V2 80 80) 0) True
         bubbleHandler entity (UIEvents.UIEvent _ payload @ (UIEvents.MouseButtonEvent' _)) = do
             putStrLn $ show entity ++ " " ++ show payload
             return (UIEvents.Bubbled True Nothing)
@@ -61,11 +62,12 @@ main = withSDL . withWindow "uievent-sdl2:example" (640, 480) $ \w -> do
             UIEvents.Location p1 size _ = UIEvents.uielementLocation element
             position = fmap floor $ p0 ^+^ p1
             rect = SDL.Rectangle (SDL.P position) (fmap floor size)
-        SDL.rendererDrawColor r $= color
-        SDL.fillRect r (Just rect)
-        SDL.rendererDrawColor r $= V4 64 64 64 255
-        SDL.drawRect r (Just rect)
-        SDL.rendererDrawColor r $= V4 0 0 0 255
+        when (UIEvents.uielementDisplay element) $ do
+            SDL.rendererDrawColor r $= color
+            SDL.fillRect r (Just rect)
+            SDL.rendererDrawColor r $= V4 64 64 64 255
+            SDL.drawRect r (Just rect)
+            SDL.rendererDrawColor r $= V4 0 0 0 255
         return (p1, ())
 
     tick dispatcher renderer = do

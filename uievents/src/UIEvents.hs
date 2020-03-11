@@ -210,10 +210,10 @@ defaultHandlers = UIElementHandlers ch bh
     ch _ (UIEvent _ (WindowResizeEvent' _))  = return (Captured True)
     ch _ (UIEvent _ (WindowCloseEvent' _))  = return (Captured True)
     ch e (UIEvent _ (MouseMotionEvent' ev))
-        | insideLocation (mouseMotionEventPosition ev) (uielementLocation . uientityContent $ e) = return (Captured True)
+        | (uielementDisplay . uientityContent $ e) && insideLocation (mouseMotionEventPosition ev) (uielementLocation . uientityContent $ e) = return (Captured True)
         | otherwise = return Uncaptured
     ch e (UIEvent _ (MouseButtonEvent' ev))
-        | insideLocation (mouseButtonEventPosition ev) (uielementLocation . uientityContent $ e) = return (Captured True)
+        | (uielementDisplay . uientityContent $ e) && insideLocation (mouseButtonEventPosition ev) (uielementLocation . uientityContent $ e) = return (Captured True)
         | otherwise = return Uncaptured
     ch _ (UIEvent _ (KeyboardEvent' _))     = return Uncaptured
 
