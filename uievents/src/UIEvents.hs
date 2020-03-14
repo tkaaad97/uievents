@@ -5,6 +5,8 @@ module UIEvents
     , removeUIElement
     , modifyUIElement
     , setZIndex
+    , setCaptureHandler
+    , setBubbleHandler
     , sliceUIEntities
     , foldUIEntities
     , dispatchUIEvent
@@ -93,6 +95,22 @@ setZIndex dispatcher elemId z = do
     store = uieventDispatcherElements dispatcher
     f a = a { uientityZIndex = z }
 
+setCaptureHandler :: UIEventDispatcher a -> UIElementId -> CaptureHandler a -> IO ()
+setCaptureHandler dispatcher elemId handler = do
+    _ <- Component.modifyComponent store f elemId
+    return ()
+    where
+    store = uieventDispatcherElements dispatcher
+    f a = a { uientityHandlers = (uientityHandlers a) { captureHandler = handler } }
+
+setBubbleHandler :: UIEventDispatcher a -> UIElementId -> BubbleHandler a -> IO ()
+setBubbleHandler dispatcher elemId handler = do
+    _ <- Component.modifyComponent store f elemId
+    return ()
+    where
+    store = uieventDispatcherElements dispatcher
+    f a = a { uientityHandlers = (uientityHandlers a) { bubbleHandler = handler } }
+
 removeUIElement :: UIEventDispatcher a -> UIElementId -> IO ()
 removeUIElement dispatcher elemId = do
     e <- maybe (throwIO . userError $ "element not found: " ++ show elemId) return =<< Component.readComponent store elemId
@@ -144,7 +162,7 @@ capturePhase dispatcher event = do
     store = uieventDispatcherElements dispatcher
 
     go xs entity = do
-        r <- f entity xs
+        r <- f xs entity
         case r of
             Just (True, xs') -> do
                 children <- getZSortedChildren dispatcher entity
@@ -152,13 +170,15 @@ capturePhase dispatcher event = do
             Just (False, xs') -> return $ Just xs'
             Nothing -> return Nothing
 
-    f entity xs = do
-        let handler = captureHandler . uientityHandlers $ entity
-        captureResult <- liftIO $ handler entity event
-        case captureResult of
-            Captured True  -> return . Just $ (True, entity : xs)
-            Captured False -> return . Just $ (False, entity : xs)
-            Uncaptured     -> return Nothing
+    f xs entity
+        | uielementDisplay . uientityContent $ entity = do
+            let handler = captureHandler . uientityHandlers $ entity
+            captureResult <- liftIO $ handler entity event
+            case captureResult of
+                Captured True  -> return . Just $ (True, entity : xs)
+                Captured False -> return . Just $ (False, entity : xs)
+                Uncaptured     -> return Nothing
+        | otherwise = return Nothing
 
 getZSortedChildren :: UIEventDispatcher a -> UIEntity a -> IO (BV.Vector (UIEntity a))
 getZSortedChildren dispatcher entity
@@ -210,10 +230,10 @@ defaultHandlers = UIElementHandlers ch bh
     ch _ (UIEvent _ (WindowResizeEvent' _))  = return (Captured True)
     ch _ (UIEvent _ (WindowCloseEvent' _))  = return (Captured True)
     ch e (UIEvent _ (MouseMotionEvent' ev))
-        | (uielementDisplay . uientityContent $ e) && insideLocation (mouseMotionEventPosition ev) (uielementLocation . uientityContent $ e) = return (Captured True)
+        | insideLocation (mouseMotionEventPosition ev) (uielementLocation . uientityContent $ e) = return (Captured True)
         | otherwise = return Uncaptured
     ch e (UIEvent _ (MouseButtonEvent' ev))
-        | (uielementDisplay . uientityContent $ e) && insideLocation (mouseButtonEventPosition ev) (uielementLocation . uientityContent $ e) = return (Captured True)
+        | insideLocation (mouseButtonEventPosition ev) (uielementLocation . uientityContent $ e) = return (Captured True)
         | otherwise = return Uncaptured
     ch _ (UIEvent _ (KeyboardEvent' _))     = return Uncaptured
 

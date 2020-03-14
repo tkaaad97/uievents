@@ -10,11 +10,14 @@ import Data.Text (Text)
 import Data.Word (Word8)
 import Linear (V2(..), V4(..), (^+^))
 import qualified SDL
-import qualified UIEvents (BubbleResult(..), DispatchResult(..), Location(..),
+import qualified UIEvents (BubbleResult(..), CaptureResult(..),
+                           DispatchResult(..), Location(..), MouseButton(..),
+                           MouseButtonEvent(..), MouseButtonEventType(..),
                            UIElement(..), UIElementHandlers(..), UIEntity(..),
                            UIEvent(..), UIEventPayload(..), addUIElement,
-                           defaultHandlers, foldUIEntities,
-                           newUIEventDispatcher, uieventDispatcherRoot)
+                           defaultHandlers, foldUIEntities, modifyUIElement,
+                           newUIEventDispatcher, setBubbleHandler, setZIndex,
+                           uieventDispatcherRoot)
 import qualified UIEvents.SDL as UIEvents (pollEventDispatch)
 
 main :: IO ()
@@ -34,9 +37,10 @@ main = withSDL . withWindow "uievent-sdl2:example" (640, 480) $ \w -> do
         handlers = UIEvents.defaultHandlers { UIEvents.bubbleHandler = bubbleHandler }
     elemId1 <- UIEvents.addUIElement dispatcher root e1 handlers
     _ <- UIEvents.addUIElement dispatcher root e2 handlers
-    _ <- UIEvents.addUIElement dispatcher root e3 handlers
+    elemId3 <- UIEvents.addUIElement dispatcher root e3 handlers
     _ <- UIEvents.addUIElement dispatcher elemId1 e4 handlers
     _ <- UIEvents.addUIElement dispatcher elemId1 e5 handlers
+    _ <- addModal dispatcher (createModal dispatcher elemId3)
     eventLoop dispatcher renderer
 
     where
@@ -53,10 +57,10 @@ main = withSDL . withWindow "uievent-sdl2:example" (640, 480) $ \w -> do
     draw r d = do
         SDL.rendererDrawColor r $= V4 0 0 0 255
         SDL.clear r
-        UIEvents.foldUIEntities d (drawEntity r) (V2 0 0) ()
+        UIEvents.foldUIEntities d (drawEntity r) (True, V2 0 0) ()
         SDL.present r
 
-    drawEntity r e p0 _ = liftIO $ do
+    drawEntity r e (True, p0) _ = liftIO $ do
         let element = UIEvents.uientityContent e
             color = UIEvents.uielementValue element
             UIEvents.Location p1 size _ = UIEvents.uielementLocation element
@@ -68,7 +72,9 @@ main = withSDL . withWindow "uievent-sdl2:example" (640, 480) $ \w -> do
             SDL.rendererDrawColor r $= V4 64 64 64 255
             SDL.drawRect r (Just rect)
             SDL.rendererDrawColor r $= V4 0 0 0 255
-        return (p1, ())
+        return ((UIEvents.uielementDisplay element, p1), ())
+
+    drawEntity _ _ (False, p1) _ = return ((False, p1), ())
 
     tick dispatcher renderer = do
         threadDelay 50
@@ -81,3 +87,27 @@ main = withSDL . withWindow "uievent-sdl2:example" (640, 480) $ \w -> do
         case r of
             Just UIEvents.DispatchExit -> putStrLn "dispatch exit"
             _                          -> eventLoop dispatcher renderer
+
+    createModal dispatcher startElemId modalRoot startModal endModal = do
+        let startHandler _ (UIEvents.UIEvent _ (UIEvents.MouseButtonEvent' (UIEvents.MouseButtonEvent UIEvents.MouseButtonReleased UIEvents.MouseButtonLeft _))) =
+                startModal >> return (UIEvents.Bubbled True Nothing)
+            startHandler _ _ = return (UIEvents.Bubbled True Nothing)
+            endHandler _ (UIEvents.UIEvent _ (UIEvents.MouseButtonEvent' (UIEvents.MouseButtonEvent UIEvents.MouseButtonReleased UIEvents.MouseButtonLeft _))) =
+                endModal >> return (UIEvents.Bubbled True Nothing)
+            endHandler _ _ = return (UIEvents.Bubbled True Nothing)
+            modalElement = UIEvents.UIElement (V4 200 0 0 255 :: V4 Word8) (UIEvents.Location (V2 10 10) (V2 100 200) 0) True
+        UIEvents.setBubbleHandler dispatcher startElemId startHandler
+        UIEvents.addUIElement dispatcher modalRoot modalElement UIEvents.defaultHandlers { UIEvents.bubbleHandler = endHandler }
+
+    addModal dispatcher f = do
+        let root = UIEvents.uieventDispatcherRoot dispatcher
+            modalRootElement = UIEvents.UIElement (V4 0 0 0 32 :: V4 Word8) (UIEvents.Location (V2 0 0) (V2 640 480) 0) False
+            captureAll _ _ = return (UIEvents.Captured True)
+            modalRootHandlers = UIEvents.defaultHandlers { UIEvents.captureHandler = captureAll }
+        modalRoot <- UIEvents.addUIElement dispatcher root modalRootElement modalRootHandlers
+        UIEvents.setZIndex dispatcher modalRoot 1
+        let startModal = UIEvents.modifyUIElement dispatcher (`setUIElementDisplay` True) modalRoot
+            endModal = UIEvents.modifyUIElement dispatcher (`setUIElementDisplay` False) modalRoot
+        f modalRoot startModal endModal
+
+    setUIElementDisplay a b = a { UIEvents.uielementDisplay = b }
