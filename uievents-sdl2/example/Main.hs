@@ -2,10 +2,11 @@
 module Main where
 
 import Control.Concurrent (threadDelay)
-import Control.Monad (when)
+import Control.Monad (forM, forM_, when)
 import Control.Monad.IO.Class (liftIO)
 import Data.StateVar (($=))
 import Data.Text (Text)
+import qualified Data.Vector.Mutable as MBV (IOVector, new, read, write)
 import Data.Word (Word8)
 import Linear (V2(..), V4(..), (^+^))
 import qualified SDL
@@ -18,6 +19,12 @@ import qualified UIEvents (BubbleResult(..), CaptureResult(..),
                            newUIEventDispatcher, setBubbleHandler, setZIndex,
                            uieventDispatcherRoot)
 import qualified UIEvents.SDL as UIEvents (pollEventsDispatch)
+
+data Card = Card
+    { cardPosition     :: !(V2 Double)
+    , cardVelocity     :: !(V2 Double)
+    , cardAcceleration :: !(V2 Double)
+    } deriving (Show, Eq)
 
 main :: IO ()
 main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, truncate windowHeight) $ \w -> do
@@ -39,7 +46,7 @@ main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, trunca
         bubbleHandler _ _ = return (UIEvents.Bubbled True Nothing)
         handlers = UIEvents.defaultHandlers { UIEvents.bubbleHandler = bubbleHandler }
     div1 <- UIEvents.addUIElement dispatcher root d1 handlers
-    _ <- UIEvents.addUIElement dispatcher root d2 handlers
+    div2 <- UIEvents.addUIElement dispatcher root d2 handlers
     _ <- UIEvents.addUIElement dispatcher root d3 handlers
     _ <- UIEvents.addUIElement dispatcher root d4 handlers
     elemId1 <- UIEvents.addUIElement dispatcher div1 e1 handlers
@@ -48,6 +55,7 @@ main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, trunca
     _ <- UIEvents.addUIElement dispatcher elemId1 e4 handlers
     _ <- UIEvents.addUIElement dispatcher elemId1 e5 handlers
     _ <- addModal dispatcher (createModal dispatcher elemId3)
+    _ <- addCards dispatcher div2 12
     eventLoop dispatcher renderer
 
     where
@@ -120,3 +128,16 @@ main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, trunca
         f modalRoot startModal endModal
 
     setUIElementDisplay a b = a { UIEvents.uielementDisplay = b }
+
+    addCards dispatcher parent n = do
+        store <- MBV.new n :: IO (MBV.IOVector Card)
+        forM_ [0..(n-1)] $ \i -> do
+            let x = fromIntegral $ 20 + i * 40
+                y = 20
+                card = Card (V2 x y) (V2 0 0) (V2 0 0)
+            MBV.write store i card
+        forM [0..(n-1)] $ \i -> do
+            card <- MBV.read store i
+            let pos = cardPosition card
+                element = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location pos (V2 100 200) 0) True
+            UIEvents.addUIElement dispatcher parent element UIEvents.defaultHandlers
