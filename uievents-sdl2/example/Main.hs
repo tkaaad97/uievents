@@ -40,10 +40,10 @@ main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, trunca
         e3 = UIEvents.UIElement (V4 0 0 255 255 :: V4 Word8) (UIEvents.Location (V2 400 20) (V2 180 180) 0) True
         e4 = UIEvents.UIElement (V4 255 0 0 255 :: V4 Word8) (UIEvents.Location (V2 10 10) (V2 75 75) 0) True
         e5 = UIEvents.UIElement (V4 0 255 0 255 :: V4 Word8) (UIEvents.Location (V2 95 10) (V2 75 75) 0) True
-        bubbleHandler entity (UIEvents.UIEvent _ payload @ (UIEvents.MouseButtonEvent' _)) = do
+        bubbleHandler entity (UIEvents.UIEvent _ payload @ (UIEvents.MouseButtonEvent' _)) _ = do
             putStrLn $ show entity ++ " " ++ show payload
             return (UIEvents.Bubbled True Nothing)
-        bubbleHandler _ _ = return (UIEvents.Bubbled True Nothing)
+        bubbleHandler _ _ _ = return (UIEvents.Bubbled True Nothing)
         handlers = UIEvents.defaultHandlers { UIEvents.bubbleHandler = bubbleHandler }
     div1 <- UIEvents.addUIElement dispatcher root d1 handlers
     div2 <- UIEvents.addUIElement dispatcher root d2 handlers
@@ -106,12 +106,12 @@ main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, trunca
             _                     -> eventLoop dispatcher renderer
 
     createModal dispatcher startElemId modalRoot startModal endModal = do
-        let startHandler _ (UIEvents.UIEvent _ (UIEvents.MouseButtonEvent' (UIEvents.MouseButtonEvent UIEvents.MouseButtonReleased UIEvents.MouseButtonLeft _))) =
+        let startHandler _ (UIEvents.UIEvent _ (UIEvents.MouseButtonEvent' (UIEvents.MouseButtonEvent UIEvents.MouseButtonReleased UIEvents.MouseButtonLeft _))) _ =
                 startModal >> return (UIEvents.Bubbled True Nothing)
-            startHandler _ _ = return (UIEvents.Bubbled True Nothing)
-            endHandler _ (UIEvents.UIEvent _ (UIEvents.MouseButtonEvent' (UIEvents.MouseButtonEvent UIEvents.MouseButtonReleased UIEvents.MouseButtonLeft _))) =
+            startHandler _ _ _ = return (UIEvents.Bubbled True Nothing)
+            endHandler _ (UIEvents.UIEvent _ (UIEvents.MouseButtonEvent' (UIEvents.MouseButtonEvent UIEvents.MouseButtonReleased UIEvents.MouseButtonLeft _))) _ =
                 endModal >> return (UIEvents.Bubbled True Nothing)
-            endHandler _ _ = return (UIEvents.Bubbled True Nothing)
+            endHandler _ _ _ = return (UIEvents.Bubbled True Nothing)
             modalElement = UIEvents.UIElement (V4 200 0 0 255 :: V4 Word8) (UIEvents.Location (V2 10 10) (V2 100 200) 0) True
         UIEvents.setBubbleHandler dispatcher startElemId startHandler
         UIEvents.addUIElement dispatcher modalRoot modalElement UIEvents.defaultHandlers { UIEvents.bubbleHandler = endHandler }

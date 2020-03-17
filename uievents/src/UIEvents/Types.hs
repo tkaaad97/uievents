@@ -122,7 +122,7 @@ data DispatchResult =
     deriving (Show, Eq)
 
 type CaptureHandler a = UIEntity a -> UIEvent -> IO CaptureResult
-type BubbleHandler a = UIEntity a -> UIEvent -> IO (BubbleResult a)
+type BubbleHandler a = UIEntity a -> UIEvent -> UIElementId -> IO (BubbleResult a)
 
 data UIEntity a = UIEntity
     { uientityId              :: !UIElementId

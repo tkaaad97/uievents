@@ -57,8 +57,8 @@ newUIEventDispatcher rootElem = do
     rootCapture _ (UIEvent _ (WindowResizeEvent' _)) = return (Captured False)
     rootCapture _ (UIEvent _ (WindowCloseEvent' _))  = return (Captured False)
     rootCapture _ _                                  = return (Captured True)
-    rootBubble _ (UIEvent _ (WindowCloseEvent' _)) = return BubbledExit
-    rootBubble _ _ = return (Bubbled False Nothing)
+    rootBubble _ (UIEvent _ (WindowCloseEvent' _)) _ = return BubbledExit
+    rootBubble _ _ _ = return (Bubbled False Nothing)
 
 addUIElement :: UIEventDispatcher a -> UIElementId -> UIElement a -> UIElementHandlers a -> IO UIElementId
 addUIElement dispatcher parent element handlers = do
@@ -199,19 +199,19 @@ getZSortedChildren dispatcher entity
         compare (uientityZIndex e2) (uientityZIndex e1)
     updateZSortedChildren a b = a { uientityZSortedChildren = b, uientityUpdated = False }
 
-bubblePhase :: UIEventDispatcher a -> [UIEntity a] -> UIEvent -> IO DispatchResult
-bubblePhase _ [] _ = return DispatchContinue
-bubblePhase dispatcher (entity : es) event = do
-    bubbleResult <- handler entity event
+bubblePhase :: UIEventDispatcher a -> [UIEntity a] -> UIEvent -> UIElementId -> IO DispatchResult
+bubblePhase _ [] _ _ = return DispatchContinue
+bubblePhase dispatcher (entity : es) event target = do
+    bubbleResult <- handler entity event target
     case bubbleResult of
         Bubbled propagate Nothing ->
             if propagate
-                then bubblePhase dispatcher es event
+                then bubblePhase dispatcher es event target
                 else return DispatchContinue
         Bubbled propagate (Just element) -> do
             _ <- Component.modifyComponent store (`updateUIEntityContent` element) (uientityId entity)
             if propagate
-                then bubblePhase dispatcher es event
+                then bubblePhase dispatcher es event target
                 else return DispatchContinue
         BubbledExit ->
             return DispatchExit
@@ -222,7 +222,10 @@ bubblePhase dispatcher (entity : es) event = do
 dispatchUIEvent :: UIEventDispatcher a -> UIEvent -> IO DispatchResult
 dispatchUIEvent dispatcher event = do
     es <- capturePhase dispatcher event
-    bubblePhase dispatcher es event
+    let target = if null es
+                    then uieventDispatcherRoot dispatcher
+                    else uientityId . head $ es
+    bubblePhase dispatcher es event target
 
 defaultHandlers :: UIElementHandlers a
 defaultHandlers = UIElementHandlers ch bh
@@ -237,7 +240,7 @@ defaultHandlers = UIElementHandlers ch bh
         | otherwise = return Uncaptured
     ch _ (UIEvent _ (KeyboardEvent' _))     = return Uncaptured
 
-    bh _ _ = return (Bubbled True Nothing)
+    bh _ _ _ = return (Bubbled True Nothing)
 
 insideLocation :: V2 Int32 -> Location -> Bool
 insideLocation (V2 px py) (Location (V2 x y) (V2 width height) theta) =
