@@ -1,7 +1,11 @@
+{-# LANGUAGE FlexibleContexts #-}
 module UIEvents
     ( module UIEvents.Types
     , newUIEventDispatcher
     , element
+    , root
+    , newElement
+    , newElement_
     , addUIElement
     , removeUIElement
     , modifyUIElement
@@ -16,6 +20,8 @@ module UIEvents
 import Control.Exception (throwIO)
 import Control.Monad (mplus, msum, unless, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Trans.Reader (ReaderT, ask, reader, runReaderT,
+                                   withReaderT)
 import qualified Data.Atomics.Counter as Counter (incrCounter, newCounter)
 import Data.Int (Int32)
 import Data.Maybe (fromMaybe, maybe)
@@ -90,6 +96,23 @@ element value location = e
 
     bh _ _ _ = return (Bubbled True Nothing)
 
+root :: ReaderT (UIEventDispatcher a, UIElementId) IO b -> ReaderT (UIEventDispatcher a) IO b
+root block = do
+    rid <- reader uieventDispatcherRoot
+    withReaderT (flip (,) rid) block
+
+newElement_ :: UIElement a -> ReaderT (UIEventDispatcher a, UIElementId) IO ()
+newElement_ el = do
+    (dispatcher, pid) <- ask
+    _ <- liftIO $ addUIElement dispatcher pid el
+    return ()
+
+newElement :: UIElement a -> ReaderT (UIEventDispatcher a, UIElementId) IO b -> ReaderT (UIEventDispatcher a, UIElementId) IO b
+newElement el block = do
+    (dispatcher, pid) <- ask
+    eid <- liftIO $ addUIElement dispatcher pid el
+    liftIO $ runReaderT block (dispatcher, eid)
+
 modifyUIElement :: UIEventDispatcher a -> (UIElement a -> UIElement a) -> UIElementId -> IO ()
 modifyUIElement = modifyUIElement' True
 
@@ -161,8 +184,8 @@ sliceUIEntities dispatcher = do
 
 foldUIEntities :: MonadIO m => UIEventDispatcher a -> (UIEntity a -> x -> y -> m (x, y)) -> x -> y -> m y
 foldUIEntities dispatcher f x y = do
-    root <- liftIO $ readComponent store rootId
-    go x y root
+    root' <- liftIO $ readComponent store rootId
+    go x y root'
     where
     rootId = uieventDispatcherRoot dispatcher
     store = uieventDispatcherElements dispatcher
@@ -174,8 +197,8 @@ foldUIEntities dispatcher f x y = do
 
 capturePhase :: UIEventDispatcher a -> UIEvent -> IO [UIEntity a]
 capturePhase dispatcher event = do
-    root <- readComponent store rootId
-    fromMaybe [] <$> go (V2 0 0) [] root
+    root' <- readComponent store rootId
+    fromMaybe [] <$> go (V2 0 0) [] root'
     where
     rootId = uieventDispatcherRoot dispatcher
     store = uieventDispatcherElements dispatcher

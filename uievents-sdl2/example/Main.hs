@@ -3,6 +3,8 @@ module Main where
 
 import Control.Monad (forM, forM_, when)
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Reader (ask, runReaderT)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.StateVar (($=))
 import Data.Text (Text)
@@ -10,13 +12,14 @@ import qualified Data.Vector.Mutable as MBV (IOVector, new, read, write)
 import Data.Word (Word8)
 import Linear (V2(..), V4(..), (^+^))
 import qualified SDL
+import UIEvents (newElement, newElement_)
 import qualified UIEvents (BubbleResult(..), CaptureResult(..),
                            DispatchResult(..), Location(..), MouseButton(..),
                            MouseButtonEvent(..), MouseButtonEventType(..),
                            MouseMotionEvent(..), UIElement(..), UIElementId,
                            UIEntity(..), UIEvent(..), UIEventPayload(..),
                            addUIElement, element, foldUIEntities,
-                           modifyUIElement, newUIEventDispatcher,
+                           modifyUIElement, newUIEventDispatcher, root,
                            setBubbleHandler, uieventDispatcherRoot)
 import qualified UIEvents.SDL as UIEvents (pollEventsDispatch)
 
@@ -31,8 +34,7 @@ main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, trunca
     renderer <- SDL.createRenderer w (-1) SDL.defaultRenderer
     dispatcher <- UIEvents.newUIEventDispatcher (V4 255 255 255 255 :: V4 Word8)
     mouseDownOn <- newIORef Nothing :: IO (IORef (Maybe UIEvents.UIElementId))
-    let root = UIEvents.uieventDispatcherRoot dispatcher
-        appRootElem = UIEvents.element (V4 255 255 255 255) (UIEvents.Location (V2 0 0) (V2 windowWidth windowHeight))
+    let appRootElem = UIEvents.element (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 0 0) (V2 windowWidth windowHeight))
         d1 = UIEvents.element (V4 255 255 255 255) (UIEvents.Location (V2 0 0) (V2 600 450))
         d2 = UIEvents.element (V4 255 255 255 255) (UIEvents.Location (V2 600 0) (V2 600 450))
         d3 = UIEvents.element (V4 255 255 255 255) (UIEvents.Location (V2 0 450) (V2 600 450))
@@ -68,18 +70,24 @@ main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, trunca
                     else return (UIEvents.Bubbled True Nothing)
             | otherwise = return (UIEvents.Bubbled True Nothing)
         dragHandler _ _ _ = return (UIEvents.Bubbled True Nothing)
-    appRoot <- UIEvents.addUIElement dispatcher root appRootElem { UIEvents.uielementBubbleHandler = appRootBubble }
-    div1 <- UIEvents.addUIElement dispatcher appRoot d1 { UIEvents.uielementBubbleHandler = bubbleHandler }
-    div2 <- UIEvents.addUIElement dispatcher appRoot d2 { UIEvents.uielementBubbleHandler = bubbleHandler }
-    div3 <- UIEvents.addUIElement dispatcher appRoot d3 { UIEvents.uielementBubbleHandler = bubbleHandler }
-    _ <- UIEvents.addUIElement dispatcher appRoot d4 { UIEvents.uielementBubbleHandler = bubbleHandler }
-    elemId1 <- UIEvents.addUIElement dispatcher div1 e1 { UIEvents.uielementBubbleHandler = bubbleHandler }
-    _ <- UIEvents.addUIElement dispatcher div1 e2 { UIEvents.uielementBubbleHandler = bubbleHandler }
-    elemId3 <- UIEvents.addUIElement dispatcher div1 e3 { UIEvents.uielementBubbleHandler = bubbleHandler }
-    _ <- UIEvents.addUIElement dispatcher elemId1 e4 { UIEvents.uielementBubbleHandler = bubbleHandler }
-    _ <- UIEvents.addUIElement dispatcher div3 e5 { UIEvents.uielementBubbleHandler = dragHandler }
-    _ <- addModal dispatcher (createModal dispatcher elemId3)
-    _ <- addCards dispatcher div2 12
+    flip runReaderT dispatcher $
+        UIEvents.root $
+            newElement (appRootElem { UIEvents.uielementBubbleHandler = appRootBubble }) $ do
+                newElement d1 { UIEvents.uielementBubbleHandler = bubbleHandler } $ do
+                    newElement e1 { UIEvents.uielementBubbleHandler = bubbleHandler } $
+                        newElement_ e4 { UIEvents.uielementBubbleHandler = bubbleHandler }
+                    newElement_ e2 { UIEvents.uielementBubbleHandler = bubbleHandler }
+                    newElement e3 { UIEvents.uielementBubbleHandler = bubbleHandler } $ do
+                        (_, eid) <- ask
+                        _ <- lift $ addModal dispatcher (createModal dispatcher eid)
+                        return ()
+                newElement d2 { UIEvents.uielementBubbleHandler = bubbleHandler } $ do
+                    (_, eid) <- ask
+                    _ <- lift $ addCards dispatcher eid 12
+                    return ()
+                newElement d3 { UIEvents.uielementBubbleHandler = bubbleHandler } $
+                    newElement_ e5 { UIEvents.uielementBubbleHandler = dragHandler }
+                newElement_ d4 { UIEvents.uielementBubbleHandler = bubbleHandler }
     eventLoop dispatcher renderer
 
     where
