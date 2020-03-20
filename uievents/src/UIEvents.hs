@@ -1,6 +1,7 @@
 module UIEvents
     ( module UIEvents.Types
     , newUIEventDispatcher
+    , element
     , addUIElement
     , removeUIElement
     , modifyUIElement
@@ -10,7 +11,6 @@ module UIEvents
     , sliceUIEntities
     , foldUIEntities
     , dispatchUIEvent
-    , defaultHandlers
     ) where
 
 import Control.Exception (throwIO)
@@ -36,34 +36,34 @@ import UIEvents.Types
 
 
 updateUIEntityContent :: UIEntity a -> UIElement a -> UIEntity a
-updateUIEntityContent entity element = modifyUIEntityContent (const element) entity
+updateUIEntityContent entity el = modifyUIEntityElement (const el) entity
 
 setUIEntityUpdated :: UIEntity a -> Bool -> UIEntity a
 setUIEntityUpdated a b = a { uientityUpdated = b }
 
-modifyUIEntityContent :: (UIElement a -> UIElement a) -> UIEntity a -> UIEntity a
-modifyUIEntityContent f entity = entity { uientityContent = f . uientityContent $ entity }
+modifyUIEntityElement :: (UIElement a -> UIElement a) -> UIEntity a -> UIEntity a
+modifyUIEntityElement f entity = entity { uientityElement = f . uientityElement $ entity }
 
-newUIEventDispatcher :: UIElement a -> IO (UIEventDispatcher a)
-newUIEventDispatcher rootElem = do
+newUIEventDispatcher :: a -> IO (UIEventDispatcher a)
+newUIEventDispatcher rootValue = do
     let rootId = UIElementId 1
-        rootEntity = UIEntity rootId mempty Nothing rootElem 0 mempty rootHandlers False
+        rootElem = UIElement rootValue (Location (V2 0 0) (V2 0 0)) True 0 rootCapture rootBubble
+        rootEntity = UIEntity rootId mempty Nothing rootElem mempty False
     store <- Component.newComponentStore 10 (Proxy :: Proxy (MBV.IOVector (UIEntity a)))
     Component.addComponent store rootId rootEntity
     counter <- Counter.newCounter 1
     return (UIEventDispatcher counter rootId store)
     where
-    rootHandlers = UIElementHandlers rootCapture rootBubble
     rootCapture _ (UIEvent _ (WindowResizeEvent' _)) _ = return (Captured False)
     rootCapture _ (UIEvent _ (WindowCloseEvent' _)) _  = return (Captured False)
     rootCapture _ _ _                                  = return (Captured True)
     rootBubble _ (UIEvent _ (WindowCloseEvent' _)) _ = return BubbledExit
     rootBubble _ _ _ = return (Bubbled False Nothing)
 
-addUIElement :: UIEventDispatcher a -> UIElementId -> UIElement a -> UIElementHandlers a -> IO UIElementId
-addUIElement dispatcher parent element handlers = do
+addUIElement :: UIEventDispatcher a -> UIElementId -> UIElement a -> IO UIElementId
+addUIElement dispatcher parent el = do
     elemId <- UIElementId <$> Counter.incrCounter 1 counter
-    let entity = UIEntity elemId mempty (Just parent) element 0 mempty handlers False
+    let entity = UIEntity elemId mempty (Just parent) el mempty False
     Component.addComponent store elemId entity
     r <- Component.modifyComponent store (flip setUIEntityUpdated True . addChild elemId) parent
     unless r . throwIO . userError $ "element not found: " ++ show parent
@@ -74,9 +74,40 @@ addUIElement dispatcher parent element handlers = do
     addChild c e =
         e { uientityChildren = uientityChildren e `BV.snoc` c }
 
+element :: a -> Location -> UIElement a
+element value location = e
+    where
+    e = UIElement value location True 0 ch bh
+    ch _ (UIEvent _ (WindowResizeEvent' _)) _ = return (Captured True)
+    ch _ (UIEvent _ (WindowCloseEvent' _)) _  = return (Captured True)
+    ch entity (UIEvent _ (MouseMotionEvent' ev)) p0
+        | insideLocation (mouseMotionEventPosition ev) (uielementLocation . uientityElement $ entity) p0 = return (Captured True)
+        | otherwise = return Uncaptured
+    ch entity (UIEvent _ (MouseButtonEvent' ev)) p0
+        | insideLocation (mouseButtonEventPosition ev) (uielementLocation . uientityElement $ entity) p0 = return (Captured True)
+        | otherwise = return Uncaptured
+    ch _ (UIEvent _ (KeyboardEvent' _)) _     = return Uncaptured
+
+    bh _ _ _ = return (Bubbled True Nothing)
+
 modifyUIElement :: UIEventDispatcher a -> (UIElement a -> UIElement a) -> UIElementId -> IO ()
-modifyUIElement dispatcher f elemId = do
-    r <- Component.modifyComponent store (modifyUIEntityContent f) elemId
+modifyUIElement = modifyUIElement' True
+
+modifyUIElement' :: Bool -> UIEventDispatcher a -> (UIElement a -> UIElement a) -> UIElementId -> IO ()
+modifyUIElement' True dispatcher f elemId = do
+    before <- readComponent store elemId
+    r <- Component.modifyComponent store (modifyUIEntityElement f) elemId
+    unless r . throwIO . userError $ "element not found: " ++ show elemId
+    after <- readComponent store elemId
+    let beforeZ = uielementZIndex . uientityElement $ before
+        afterZ = uielementZIndex . uientityElement $ after
+    case (uientityParent after, beforeZ /= afterZ) of
+        (Just parent, True) -> void $ Component.modifyComponent store (`setUIEntityUpdated` True) parent
+        _ -> return ()
+    where
+    store = uieventDispatcherElements dispatcher
+modifyUIElement' False dispatcher f elemId = do
+    r <- Component.modifyComponent store (modifyUIEntityElement f) elemId
     unless r . throwIO . userError $ "element not found: " ++ show elemId
     where
     store = uieventDispatcherElements dispatcher
@@ -85,31 +116,19 @@ readComponent :: Component.ComponentStore MBV.MVector UIElementId (UIEntity a) -
 readComponent store eid = liftIO (maybe (throwIO . userError $ "element not found: " ++ show eid) return =<< Component.readComponent store eid)
 
 setZIndex :: UIEventDispatcher a -> UIElementId -> Int -> IO ()
-setZIndex dispatcher elemId z = do
-    _ <- Component.modifyComponent store f elemId
-    entity <- readComponent store elemId
-    case uientityParent entity of
-        Just parent -> void $ Component.modifyComponent store (`setUIEntityUpdated` True) parent
-        Nothing -> return ()
+setZIndex dispatcher elemId z = modifyUIElement dispatcher f elemId
     where
-    store = uieventDispatcherElements dispatcher
-    f a = a { uientityZIndex = z }
+    f a = a { uielementZIndex = z }
 
 setCaptureHandler :: UIEventDispatcher a -> UIElementId -> CaptureHandler a -> IO ()
-setCaptureHandler dispatcher elemId handler = do
-    _ <- Component.modifyComponent store f elemId
-    return ()
+setCaptureHandler dispatcher elemId handler = modifyUIElement' False dispatcher f elemId
     where
-    store = uieventDispatcherElements dispatcher
-    f a = a { uientityHandlers = (uientityHandlers a) { captureHandler = handler } }
+    f a = a { uielementCaptureHandler = handler }
 
 setBubbleHandler :: UIEventDispatcher a -> UIElementId -> BubbleHandler a -> IO ()
-setBubbleHandler dispatcher elemId handler = do
-    _ <- Component.modifyComponent store f elemId
-    return ()
+setBubbleHandler dispatcher elemId handler = modifyUIElement' False dispatcher f elemId
     where
-    store = uieventDispatcherElements dispatcher
-    f a = a { uientityHandlers = (uientityHandlers a) { bubbleHandler = handler } }
+    f a = a { uielementBubbleHandler = handler }
 
 removeUIElement :: UIEventDispatcher a -> UIElementId -> IO ()
 removeUIElement dispatcher elemId = do
@@ -163,7 +182,7 @@ capturePhase dispatcher event = do
 
     go p0 xs entity = do
         r <- f p0 xs entity
-        let p' = p0 ^+^ (locationPosition . uielementLocation . uientityContent $ entity)
+        let p' = p0 ^+^ (locationPosition . uielementLocation . uientityElement $ entity)
         case r of
             Just (True, xs') -> do
                 children <- getZSortedChildren dispatcher entity
@@ -172,8 +191,8 @@ capturePhase dispatcher event = do
             Nothing -> return Nothing
 
     f p0 xs entity
-        | uielementDisplay . uientityContent $ entity = do
-            let handler = captureHandler . uientityHandlers $ entity
+        | uielementDisplay . uientityElement $ entity = do
+            let handler = uielementCaptureHandler . uientityElement $ entity
             captureResult <- liftIO $ handler entity event p0
             case captureResult of
                 Captured True  -> return . Just $ (True, entity : xs)
@@ -197,7 +216,7 @@ getZSortedChildren dispatcher entity
     store = uieventDispatcherElements dispatcher
     children = uientityChildren entity
     compareZIndexDesc e1 e2 =
-        compare (uientityZIndex e2) (uientityZIndex e1)
+        compare (uielementZIndex . uientityElement $ e2) (uielementZIndex . uientityElement $ e1)
     updateZSortedChildren a b = a { uientityZSortedChildren = b, uientityUpdated = False }
 
 bubblePhase :: UIEventDispatcher a -> [UIEntity a] -> UIEvent -> UIElementId -> IO DispatchResult
@@ -209,15 +228,15 @@ bubblePhase dispatcher (entity : es) event target = do
             if propagate
                 then bubblePhase dispatcher es event target
                 else return DispatchContinue
-        Bubbled propagate (Just element) -> do
-            _ <- Component.modifyComponent store (`updateUIEntityContent` element) (uientityId entity)
+        Bubbled propagate (Just el) -> do
+            _ <- Component.modifyComponent store (`updateUIEntityContent` el) (uientityId entity)
             if propagate
                 then bubblePhase dispatcher es event target
                 else return DispatchContinue
         BubbledExit ->
             return DispatchExit
     where
-    handler = bubbleHandler . uientityHandlers $ entity
+    handler = uielementBubbleHandler . uientityElement $ entity
     store = uieventDispatcherElements dispatcher
 
 dispatchUIEvent :: UIEventDispatcher a -> UIEvent -> IO DispatchResult
@@ -227,21 +246,6 @@ dispatchUIEvent dispatcher event = do
                     then uieventDispatcherRoot dispatcher
                     else uientityId . head $ es
     bubblePhase dispatcher es event target
-
-defaultHandlers :: UIElementHandlers a
-defaultHandlers = UIElementHandlers ch bh
-    where
-    ch _ (UIEvent _ (WindowResizeEvent' _)) _ = return (Captured True)
-    ch _ (UIEvent _ (WindowCloseEvent' _)) _  = return (Captured True)
-    ch e (UIEvent _ (MouseMotionEvent' ev)) p0
-        | insideLocation (mouseMotionEventPosition ev) (uielementLocation . uientityContent $ e) p0 = return (Captured True)
-        | otherwise = return Uncaptured
-    ch e (UIEvent _ (MouseButtonEvent' ev)) p0
-        | insideLocation (mouseButtonEventPosition ev) (uielementLocation . uientityContent $ e) p0 = return (Captured True)
-        | otherwise = return Uncaptured
-    ch _ (UIEvent _ (KeyboardEvent' _)) _     = return Uncaptured
-
-    bh _ _ _ = return (Bubbled True Nothing)
 
 insideLocation :: V2 Int32 -> Location -> V2 Double -> Bool
 insideLocation (V2 px py) (Location (V2 x y) (V2 width height)) (V2 x0 y0) =

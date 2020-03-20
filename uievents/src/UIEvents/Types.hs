@@ -12,7 +12,6 @@ module UIEvents.Types
     , Timestamp(..)
     , UIEntity(..)
     , UIElement(..)
-    , UIElementHandlers(..)
     , UIEventDispatcher(..)
     , WindowResizeEvent(..)
     , WindowCloseEvent(..)
@@ -113,7 +112,7 @@ data CaptureResult =
 data BubbleResult a =
     Bubbled !Bool !(Maybe (UIElement a)) |
     BubbledExit
-    deriving (Show, Eq)
+    deriving (Show)
 
 data DispatchResult =
     DispatchContinue |
@@ -127,29 +126,25 @@ data UIEntity a = UIEntity
     { uientityId              :: !UIElementId
     , uientityChildren        :: !(BV.Vector UIElementId)
     , uientityParent          :: !(Maybe UIElementId)
-    , uientityContent         :: !(UIElement a)
-    , uientityZIndex          :: !Int
+    , uientityElement         :: !(UIElement a)
     , uientityZSortedChildren :: !(BV.Vector UIElementId)
-    , uientityHandlers        :: !(UIElementHandlers a)
     , uientityUpdated         :: !Bool
     } deriving (Show)
 
-data UIElement b = UIElement
-    { uielementValue    :: !b
-    , uielementLocation :: !Location
-    , uielementDisplay  :: !Bool
-    } deriving (Show, Eq)
-
-data UIElementHandlers a = UIElementHandlers
-    { captureHandler :: !(CaptureHandler a)
-    , bubbleHandler  :: !(BubbleHandler a)
+data UIElement a = UIElement
+    { uielementValue          :: !a
+    , uielementLocation       :: !Location
+    , uielementDisplay        :: !Bool
+    , uielementZIndex         :: !Int
+    , uielementCaptureHandler :: !(CaptureHandler a)
+    , uielementBubbleHandler  :: !(BubbleHandler a)
     }
+
+instance Show (UIElement a) where
+    show _ = "UIElement {}"
 
 data UIEventDispatcher a = UIEventDispatcher
     { uieventDispatcherElementCounter :: !AtomicCounter
     , uieventDispatcherRoot     :: !UIElementId
     , uieventDispatcherElements :: !(Component.ComponentStore MBV.MVector UIElementId (UIEntity a))
     }
-
-instance Show (UIElementHandlers a) where
-    show _ = "UIElementHandlers {}"
