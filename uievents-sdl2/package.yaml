@@ -10,6 +10,7 @@ dependencies:
 - sdl2
 
 ghc-options:
+- -O2
 - -Wall
 - -Wcompat
 - -Widentities
