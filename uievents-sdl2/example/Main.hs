@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import Control.Concurrent (threadDelay)
 import Control.Monad (forM, forM_, when)
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
@@ -121,9 +120,9 @@ main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, trunca
     drawEntity _ _ (False, p1) _ = return ((False, p1), ())
 
     tick dispatcher renderer = do
-        threadDelay 50
         r <- UIEvents.pollEventsDispatch dispatcher (const $ return UIEvents.DispatchContinue) id
         _ <- draw renderer dispatcher
+        SDL.delay 50
         return r
 
     eventLoop dispatcher renderer = do
