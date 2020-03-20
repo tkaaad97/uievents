@@ -30,19 +30,19 @@ data Card = Card
 main :: IO ()
 main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, truncate windowHeight) $ \w -> do
     renderer <- SDL.createRenderer w (-1) SDL.defaultRenderer
-    dispatcher <- UIEvents.newUIEventDispatcher (UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 0 0) (V2 windowWidth windowHeight) 0) True)
+    dispatcher <- UIEvents.newUIEventDispatcher (UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 0 0) (V2 windowWidth windowHeight)) True)
     mouseDownOn <- newIORef Nothing :: IO (IORef (Maybe UIEvents.UIElementId))
     let root = UIEvents.uieventDispatcherRoot dispatcher
-        appRootElem = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 0 0) (V2 windowWidth windowHeight) 0) True
-        d1 = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 0 0) (V2 600 450) 0) True
-        d2 = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 600 0) (V2 600 450) 0) True
-        d3 = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 0 450) (V2 600 450) 0) True
-        d4 = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 600 450) (V2 600 450) 0) True
-        e1 = UIEvents.UIElement (V4 255 0 0 255 :: V4 Word8) (UIEvents.Location (V2 20 20) (V2 180 180) 0) True
-        e2 = UIEvents.UIElement (V4 0 255 0 255 :: V4 Word8) (UIEvents.Location (V2 210 20) (V2 180 180) 0) True
-        e3 = UIEvents.UIElement (V4 0 0 255 255 :: V4 Word8) (UIEvents.Location (V2 400 20) (V2 180 180) 0) True
-        e4 = UIEvents.UIElement (V4 255 0 0 255 :: V4 Word8) (UIEvents.Location (V2 10 10) (V2 75 75) 0) True
-        e5 = UIEvents.UIElement (V4 0 255 0 255 :: V4 Word8) (UIEvents.Location (V2 95 10) (V2 75 75) 0) True
+        appRootElem = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 0 0) (V2 windowWidth windowHeight)) True
+        d1 = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 0 0) (V2 600 450)) True
+        d2 = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 600 0) (V2 600 450)) True
+        d3 = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 0 450) (V2 600 450)) True
+        d4 = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 600 450) (V2 600 450)) True
+        e1 = UIEvents.UIElement (V4 255 0 0 255 :: V4 Word8) (UIEvents.Location (V2 20 20) (V2 180 180)) True
+        e2 = UIEvents.UIElement (V4 0 255 0 255 :: V4 Word8) (UIEvents.Location (V2 210 20) (V2 180 180)) True
+        e3 = UIEvents.UIElement (V4 0 0 255 255 :: V4 Word8) (UIEvents.Location (V2 400 20) (V2 180 180)) True
+        e4 = UIEvents.UIElement (V4 255 0 0 255 :: V4 Word8) (UIEvents.Location (V2 10 10) (V2 75 75)) True
+        e5 = UIEvents.UIElement (V4 0 255 0 255 :: V4 Word8) (UIEvents.Location (V2 95 10) (V2 75 75)) True
         appRootBubble _ (UIEvents.UIEvent _ (UIEvents.MouseButtonEvent' (UIEvents.MouseButtonEvent UIEvents.MouseButtonPressed UIEvents.MouseButtonLeft _))) target = do
             writeIORef mouseDownOn (Just target)
             return (UIEvents.Bubbled True Nothing)
@@ -106,7 +106,7 @@ main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, trunca
     drawEntity r e (True, p0) _ = liftIO $ do
         let element = UIEvents.uientityContent e
             color = UIEvents.uielementValue element
-            UIEvents.Location p1 size _ = UIEvents.uielementLocation element
+            UIEvents.Location p1 size = UIEvents.uielementLocation element
             position = fmap floor $ p0 ^+^ p1
             rect = SDL.Rectangle (SDL.P position) (fmap floor size)
         when (UIEvents.uielementDisplay element) $ do
@@ -138,14 +138,14 @@ main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, trunca
             endHandler _ (UIEvents.UIEvent _ (UIEvents.MouseButtonEvent' (UIEvents.MouseButtonEvent UIEvents.MouseButtonReleased UIEvents.MouseButtonLeft _))) _ =
                 endModal >> return (UIEvents.Bubbled True Nothing)
             endHandler _ _ _ = return (UIEvents.Bubbled True Nothing)
-            modalElement = UIEvents.UIElement (V4 200 0 0 255 :: V4 Word8) (UIEvents.Location (V2 10 10) (V2 100 200) 0) True
+            modalElement = UIEvents.UIElement (V4 200 0 0 255 :: V4 Word8) (UIEvents.Location (V2 10 10) (V2 100 200)) True
         UIEvents.setBubbleHandler dispatcher startElemId startHandler
         UIEvents.addUIElement dispatcher modalRoot modalElement UIEvents.defaultHandlers { UIEvents.bubbleHandler = endHandler }
 
     addModal dispatcher f = do
         let root = UIEvents.uieventDispatcherRoot dispatcher
-            modalRootElement = UIEvents.UIElement (V4 0 0 0 32 :: V4 Word8) (UIEvents.Location (V2 0 0) (V2 windowWidth windowHeight) 0) False
-            captureAll _ _ = return (UIEvents.Captured True)
+            modalRootElement = UIEvents.UIElement (V4 0 0 0 32 :: V4 Word8) (UIEvents.Location (V2 0 0) (V2 windowWidth windowHeight)) False
+            captureAll _ _ _ = return (UIEvents.Captured True)
             modalRootHandlers = UIEvents.defaultHandlers { UIEvents.captureHandler = captureAll }
         modalRoot <- UIEvents.addUIElement dispatcher root modalRootElement modalRootHandlers
         UIEvents.setZIndex dispatcher modalRoot 1
@@ -165,5 +165,5 @@ main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, trunca
         forM [0..(n-1)] $ \i -> do
             card <- MBV.read store i
             let pos = cardPosition card
-                element = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location pos (V2 100 200) 0) True
+                element = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location pos (V2 100 200)) True
             UIEvents.addUIElement dispatcher parent element UIEvents.defaultHandlers

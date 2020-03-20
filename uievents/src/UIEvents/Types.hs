@@ -103,7 +103,6 @@ data KeyboardEventType =
 data Location = Location
     { locationPosition :: !(V2 Double)
     , locationSize     :: !(V2 Double)
-    , locationRotation :: !Double
     } deriving (Show, Eq)
 
 data CaptureResult =
@@ -121,7 +120,7 @@ data DispatchResult =
     DispatchExit
     deriving (Show, Eq)
 
-type CaptureHandler a = UIEntity a -> UIEvent -> IO CaptureResult
+type CaptureHandler a = UIEntity a -> UIEvent -> V2 Double -> IO CaptureResult
 type BubbleHandler a = UIEntity a -> UIEvent -> UIElementId -> IO (BubbleResult a)
 
 data UIEntity a = UIEntity

@@ -24,7 +24,7 @@ import qualified Data.Vector as BV (Vector, filter, foldM', imapM_, length, map,
                                     mapM, mapM_, snoc, take, unsafeFreeze)
 import qualified Data.Vector.Algorithms.Intro as VA (sortBy)
 import qualified Data.Vector.Mutable as MBV (IOVector, MVector, new, write)
-import Linear (V2(..), V3(..), (!*))
+import Linear (V2(..), (^+^))
 import qualified UIEvents.Internal.Component as Component (ComponentStore,
                                                            addComponent,
                                                            modifyComponent,
@@ -54,9 +54,9 @@ newUIEventDispatcher rootElem = do
     return (UIEventDispatcher counter rootId store)
     where
     rootHandlers = UIElementHandlers rootCapture rootBubble
-    rootCapture _ (UIEvent _ (WindowResizeEvent' _)) = return (Captured False)
-    rootCapture _ (UIEvent _ (WindowCloseEvent' _))  = return (Captured False)
-    rootCapture _ _                                  = return (Captured True)
+    rootCapture _ (UIEvent _ (WindowResizeEvent' _)) _ = return (Captured False)
+    rootCapture _ (UIEvent _ (WindowCloseEvent' _)) _  = return (Captured False)
+    rootCapture _ _ _                                  = return (Captured True)
     rootBubble _ (UIEvent _ (WindowCloseEvent' _)) _ = return BubbledExit
     rootBubble _ _ _ = return (Bubbled False Nothing)
 
@@ -156,24 +156,25 @@ foldUIEntities dispatcher f x y = do
 capturePhase :: UIEventDispatcher a -> UIEvent -> IO [UIEntity a]
 capturePhase dispatcher event = do
     root <- readComponent store rootId
-    fromMaybe [] <$> go [] root
+    fromMaybe [] <$> go (V2 0 0) [] root
     where
     rootId = uieventDispatcherRoot dispatcher
     store = uieventDispatcherElements dispatcher
 
-    go xs entity = do
-        r <- f xs entity
+    go p0 xs entity = do
+        r <- f p0 xs entity
+        let p' = p0 ^+^ (locationPosition . uielementLocation . uientityContent $ entity)
         case r of
             Just (True, xs') -> do
                 children <- getZSortedChildren dispatcher entity
-                (`mplus` Just xs') . msum <$> BV.mapM (go xs') children
+                (`mplus` Just xs') . msum <$> BV.mapM (go p' xs') children
             Just (False, xs') -> return $ Just xs'
             Nothing -> return Nothing
 
-    f xs entity
+    f p0 xs entity
         | uielementDisplay . uientityContent $ entity = do
             let handler = captureHandler . uientityHandlers $ entity
-            captureResult <- liftIO $ handler entity event
+            captureResult <- liftIO $ handler entity event p0
             case captureResult of
                 Captured True  -> return . Just $ (True, entity : xs)
                 Captured False -> return . Just $ (False, entity : xs)
@@ -230,22 +231,21 @@ dispatchUIEvent dispatcher event = do
 defaultHandlers :: UIElementHandlers a
 defaultHandlers = UIElementHandlers ch bh
     where
-    ch _ (UIEvent _ (WindowResizeEvent' _))  = return (Captured True)
-    ch _ (UIEvent _ (WindowCloseEvent' _))  = return (Captured True)
-    ch e (UIEvent _ (MouseMotionEvent' ev))
-        | insideLocation (mouseMotionEventPosition ev) (uielementLocation . uientityContent $ e) = return (Captured True)
+    ch _ (UIEvent _ (WindowResizeEvent' _)) _ = return (Captured True)
+    ch _ (UIEvent _ (WindowCloseEvent' _)) _  = return (Captured True)
+    ch e (UIEvent _ (MouseMotionEvent' ev)) p0
+        | insideLocation (mouseMotionEventPosition ev) (uielementLocation . uientityContent $ e) p0 = return (Captured True)
         | otherwise = return Uncaptured
-    ch e (UIEvent _ (MouseButtonEvent' ev))
-        | insideLocation (mouseButtonEventPosition ev) (uielementLocation . uientityContent $ e) = return (Captured True)
+    ch e (UIEvent _ (MouseButtonEvent' ev)) p0
+        | insideLocation (mouseButtonEventPosition ev) (uielementLocation . uientityContent $ e) p0 = return (Captured True)
         | otherwise = return Uncaptured
-    ch _ (UIEvent _ (KeyboardEvent' _))     = return Uncaptured
+    ch _ (UIEvent _ (KeyboardEvent' _)) _     = return Uncaptured
 
     bh _ _ _ = return (Bubbled True Nothing)
 
-insideLocation :: V2 Int32 -> Location -> Bool
-insideLocation (V2 px py) (Location (V2 x y) (V2 width height) theta) =
+insideLocation :: V2 Int32 -> Location -> V2 Double -> Bool
+insideLocation (V2 px py) (Location (V2 x y) (V2 width height)) (V2 x0 y0) =
     px' >= 0 && px' <= width && py' >= 0 && py' <= height
     where
-    m = V2 (V3 (cos (-theta)) (- sin (-theta)) (-x))
-           (V3 (sin (-theta)) (cos (-theta)) (-y))
-    V2 px' py' = m !* V3 (fromIntegral px) (fromIntegral py) 1
+    px' = fromIntegral px - (x0 + x)
+    py' = fromIntegral py - (y0 + y)
