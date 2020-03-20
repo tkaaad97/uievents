@@ -4,6 +4,7 @@ module Main where
 import Control.Concurrent (threadDelay)
 import Control.Monad (forM, forM_, when)
 import Control.Monad.IO.Class (liftIO)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.StateVar (($=))
 import Data.Text (Text)
 import qualified Data.Vector.Mutable as MBV (IOVector, new, read, write)
@@ -13,7 +14,8 @@ import qualified SDL
 import qualified UIEvents (BubbleResult(..), CaptureResult(..),
                            DispatchResult(..), Location(..), MouseButton(..),
                            MouseButtonEvent(..), MouseButtonEventType(..),
-                           UIElement(..), UIElementHandlers(..), UIEntity(..),
+                           MouseMotionEvent(..), UIElement(..),
+                           UIElementHandlers(..), UIElementId, UIEntity(..),
                            UIEvent(..), UIEventPayload(..), addUIElement,
                            defaultHandlers, foldUIEntities, modifyUIElement,
                            newUIEventDispatcher, setBubbleHandler, setZIndex,
@@ -30,7 +32,9 @@ main :: IO ()
 main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, truncate windowHeight) $ \w -> do
     renderer <- SDL.createRenderer w (-1) SDL.defaultRenderer
     dispatcher <- UIEvents.newUIEventDispatcher (UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 0 0) (V2 windowWidth windowHeight) 0) True)
+    mouseDownOn <- newIORef Nothing :: IO (IORef (Maybe UIEvents.UIElementId))
     let root = UIEvents.uieventDispatcherRoot dispatcher
+        appRootElem = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 0 0) (V2 windowWidth windowHeight) 0) True
         d1 = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 0 0) (V2 600 450) 0) True
         d2 = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 600 0) (V2 600 450) 0) True
         d3 = UIEvents.UIElement (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location (V2 0 450) (V2 600 450) 0) True
@@ -40,20 +44,43 @@ main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, trunca
         e3 = UIEvents.UIElement (V4 0 0 255 255 :: V4 Word8) (UIEvents.Location (V2 400 20) (V2 180 180) 0) True
         e4 = UIEvents.UIElement (V4 255 0 0 255 :: V4 Word8) (UIEvents.Location (V2 10 10) (V2 75 75) 0) True
         e5 = UIEvents.UIElement (V4 0 255 0 255 :: V4 Word8) (UIEvents.Location (V2 95 10) (V2 75 75) 0) True
+        appRootBubble _ (UIEvents.UIEvent _ (UIEvents.MouseButtonEvent' (UIEvents.MouseButtonEvent UIEvents.MouseButtonPressed UIEvents.MouseButtonLeft _))) target = do
+            writeIORef mouseDownOn (Just target)
+            return (UIEvents.Bubbled True Nothing)
+        appRootBubble _ (UIEvents.UIEvent _ (UIEvents.MouseButtonEvent' (UIEvents.MouseButtonEvent UIEvents.MouseButtonReleased UIEvents.MouseButtonLeft _))) _ = do
+            writeIORef mouseDownOn Nothing
+            return (UIEvents.Bubbled True Nothing)
+        appRootBubble _ _ _ =
+            return (UIEvents.Bubbled True Nothing)
         bubbleHandler entity (UIEvents.UIEvent _ payload @ (UIEvents.MouseButtonEvent' _)) _ = do
             putStrLn $ show entity ++ " " ++ show payload
             return (UIEvents.Bubbled True Nothing)
         bubbleHandler _ _ _ = return (UIEvents.Bubbled True Nothing)
+        dragHandler entity (UIEvents.UIEvent _ (UIEvents.MouseMotionEvent' (UIEvents.MouseMotionEvent _ movement [UIEvents.MouseButtonLeft]))) target
+            | UIEvents.uientityId entity == target = do
+                downOn <- readIORef mouseDownOn
+                if downOn == Just target
+                    then
+                        let element = UIEvents.uientityContent entity
+                            location = UIEvents.uielementLocation element
+                            movedPosition = UIEvents.locationPosition location ^+^ fmap fromIntegral movement
+                            movedLocation = location { UIEvents.locationPosition = movedPosition }
+                            movedElement = element { UIEvents.uielementLocation = movedLocation }
+                        in return (UIEvents.Bubbled True (Just movedElement))
+                    else return (UIEvents.Bubbled True Nothing)
+            | otherwise = return (UIEvents.Bubbled True Nothing)
+        dragHandler _ _ _ = return (UIEvents.Bubbled True Nothing)
         handlers = UIEvents.defaultHandlers { UIEvents.bubbleHandler = bubbleHandler }
-    div1 <- UIEvents.addUIElement dispatcher root d1 handlers
-    div2 <- UIEvents.addUIElement dispatcher root d2 handlers
-    _ <- UIEvents.addUIElement dispatcher root d3 handlers
-    _ <- UIEvents.addUIElement dispatcher root d4 handlers
+    appRoot <- UIEvents.addUIElement dispatcher root appRootElem UIEvents.defaultHandlers { UIEvents.bubbleHandler = appRootBubble }
+    div1 <- UIEvents.addUIElement dispatcher appRoot d1 handlers
+    div2 <- UIEvents.addUIElement dispatcher appRoot d2 handlers
+    div3 <- UIEvents.addUIElement dispatcher appRoot d3 handlers
+    _ <- UIEvents.addUIElement dispatcher appRoot d4 handlers
     elemId1 <- UIEvents.addUIElement dispatcher div1 e1 handlers
     _ <- UIEvents.addUIElement dispatcher div1 e2 handlers
     elemId3 <- UIEvents.addUIElement dispatcher div1 e3 handlers
     _ <- UIEvents.addUIElement dispatcher elemId1 e4 handlers
-    _ <- UIEvents.addUIElement dispatcher elemId1 e5 handlers
+    _ <- UIEvents.addUIElement dispatcher div3 e5 UIEvents.defaultHandlers { UIEvents.bubbleHandler = dragHandler }
     _ <- addModal dispatcher (createModal dispatcher elemId3)
     _ <- addCards dispatcher div2 12
     eventLoop dispatcher renderer
