@@ -4,12 +4,14 @@ module UIEvents
     , newUIEventDispatcher
     , element
     , root
-    , newElement
-    , newElement_
+    , child
+    , child_
     , addUIElement
     , removeUIElement
     , modifyUIElement
-    , setZIndex
+    , setUIElementZIndex
+    , setUIElementCaptureHandler
+    , setUIElementBubbleHandler
     , setCaptureHandler
     , setBubbleHandler
     , sliceUIEntities
@@ -105,17 +107,29 @@ root block = do
     rid <- reader uieventDispatcherRoot
     withReaderT (flip (,) rid) block
 
-newElement_ :: UIElement a -> ReaderT (UIEventDispatcher a, UIElementId) IO ()
-newElement_ el = do
+child_ :: UIElement a -> ReaderT (UIEventDispatcher a, UIElementId) IO ()
+child_ el = do
     (dispatcher, pid) <- ask
     _ <- liftIO $ addUIElement dispatcher pid el
     return ()
 
-newElement :: UIElement a -> ReaderT (UIEventDispatcher a, UIElementId) IO b -> ReaderT (UIEventDispatcher a, UIElementId) IO b
-newElement el block = do
+child :: UIElement a -> ReaderT (UIEventDispatcher a, UIElementId) IO b -> ReaderT (UIEventDispatcher a, UIElementId) IO b
+child el block = do
     (dispatcher, pid) <- ask
     eid <- liftIO $ addUIElement dispatcher pid el
     liftIO $ runReaderT block (dispatcher, eid)
+
+setCaptureHandler :: CaptureHandler a -> ReaderT (UIEventDispatcher a, UIElementId) IO ()
+setCaptureHandler handler = do
+    (dispatcher, eid) <- ask
+    _ <- liftIO $ setUIElementCaptureHandler dispatcher eid handler
+    return ()
+
+setBubbleHandler :: BubbleHandler a -> ReaderT (UIEventDispatcher a, UIElementId) IO ()
+setBubbleHandler handler = do
+    (dispatcher, eid) <- ask
+    _ <- liftIO $ setUIElementBubbleHandler dispatcher eid handler
+    return ()
 
 modifyUIElement :: UIEventDispatcher a -> (UIElement a -> UIElement a) -> UIElementId -> IO ()
 modifyUIElement = modifyUIElement' True
@@ -142,18 +156,18 @@ modifyUIElement' False dispatcher f elemId = do
 readComponent :: Component.ComponentStore MBV.MVector UIElementId (UIEntity a) -> UIElementId -> IO (UIEntity a)
 readComponent store eid = liftIO (maybe (throwIO . userError $ "element not found: " ++ show eid) return =<< Component.readComponent store eid)
 
-setZIndex :: UIEventDispatcher a -> UIElementId -> Int -> IO ()
-setZIndex dispatcher elemId z = modifyUIElement dispatcher f elemId
+setUIElementZIndex :: UIEventDispatcher a -> UIElementId -> Int -> IO ()
+setUIElementZIndex dispatcher elemId z = modifyUIElement dispatcher f elemId
     where
     f a = a { uielementZIndex = z }
 
-setCaptureHandler :: UIEventDispatcher a -> UIElementId -> CaptureHandler a -> IO ()
-setCaptureHandler dispatcher elemId handler = modifyUIElement' False dispatcher f elemId
+setUIElementCaptureHandler :: UIEventDispatcher a -> UIElementId -> CaptureHandler a -> IO ()
+setUIElementCaptureHandler dispatcher elemId handler = modifyUIElement' False dispatcher f elemId
     where
     f a = a { uielementCaptureHandler = handler }
 
-setBubbleHandler :: UIEventDispatcher a -> UIElementId -> BubbleHandler a -> IO ()
-setBubbleHandler dispatcher elemId handler = modifyUIElement' False dispatcher f elemId
+setUIElementBubbleHandler :: UIEventDispatcher a -> UIElementId -> BubbleHandler a -> IO ()
+setUIElementBubbleHandler dispatcher elemId handler = modifyUIElement' False dispatcher f elemId
     where
     f a = a { uielementBubbleHandler = handler }
 
