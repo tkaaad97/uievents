@@ -181,8 +181,10 @@ removeUIElement dispatcher elemId = do
     unless deleted . throwIO . userError $ "delete failed: " ++ show elemId
     where
     store = uieventDispatcherElements dispatcher
-    removeChild e =
-        e { uientityChildren = BV.filter (/= elemId) $ uientityChildren e }
+    removeChild e = e
+        { uientityChildren = BV.filter (/= elemId) $ uientityChildren e
+        , uientityUpdated = True
+        }
 
 removeUIElement_ :: UIEventDispatcher a -> UIElementId -> IO ()
 removeUIElement_ dispatcher elemId = do
