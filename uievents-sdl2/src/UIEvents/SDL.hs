@@ -30,6 +30,8 @@ convertTimestamp timestamp = UIEvents.Timestamp (1000 * fromIntegral timestamp)
 convertPayload :: SDL.EventPayload -> Maybe UIEvents.UIEventPayload
 convertPayload (SDL.WindowResizedEvent payload) = Just $ UIEvents.WindowResizeEvent' (UIEvents.WindowResizeEvent (SDL.windowResizedEventSize payload))
 convertPayload (SDL.WindowClosedEvent _) = Just $ UIEvents.WindowCloseEvent' UIEvents.WindowCloseEvent
+convertPayload (SDL.WindowGainedMouseFocusEvent _) = Just UIEvents.WindowEnterEvent'
+convertPayload (SDL.WindowLostMouseFocusEvent _) = Just UIEvents.WindowLeaveEvent'
 convertPayload (SDL.MouseMotionEvent payload) =
     let SDL.P position = SDL.mouseMotionEventPos payload
         movement = SDL.mouseMotionEventRelMotion payload

@@ -48,6 +48,8 @@ data UIEvent = UIEvent
 data UIEventPayload =
     WindowResizeEvent' WindowResizeEvent |
     WindowCloseEvent' WindowCloseEvent |
+    WindowEnterEvent' |
+    WindowLeaveEvent' |
     MouseMotionEvent' MouseMotionEvent |
     MouseButtonEvent' MouseButtonEvent |
     KeyboardEvent' KeyboardEvent

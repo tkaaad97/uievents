@@ -62,6 +62,8 @@ newUIEventDispatcher rootValue = do
     where
     rootCapture _ (UIEvent _ (WindowResizeEvent' _)) _ = return (Captured False)
     rootCapture _ (UIEvent _ (WindowCloseEvent' _)) _  = return (Captured False)
+    rootCapture _ (UIEvent _ WindowEnterEvent') _      = return (Captured False)
+    rootCapture _ (UIEvent _ WindowLeaveEvent') _      = return (Captured False)
     rootCapture _ _ _                                  = return (Captured True)
     rootBubble _ (UIEvent _ (WindowCloseEvent' _)) _ = return BubbledExit
     rootBubble _ _ _ = return (Bubbled False Nothing)
@@ -84,8 +86,10 @@ element :: a -> Location -> UIElement a
 element value location = e
     where
     e = UIElement value location True 0 ch bh
-    ch _ (UIEvent _ (WindowResizeEvent' _)) _ = return (Captured True)
-    ch _ (UIEvent _ (WindowCloseEvent' _)) _  = return (Captured True)
+    ch _ (UIEvent _ (WindowResizeEvent' _)) _ = return Uncaptured
+    ch _ (UIEvent _ (WindowCloseEvent' _)) _  = return Uncaptured
+    ch _ (UIEvent _ WindowEnterEvent') _  = return Uncaptured
+    ch _ (UIEvent _ WindowLeaveEvent') _  = return Uncaptured
     ch entity (UIEvent _ (MouseMotionEvent' ev)) p0
         | insideLocation (mouseMotionEventPosition ev) (uielementLocation . uientityElement $ entity) p0 = return (Captured True)
         | otherwise = return Uncaptured
