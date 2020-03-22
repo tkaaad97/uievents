@@ -28,7 +28,7 @@ import Control.Monad.Trans.Reader (ReaderT, ask, reader, runReaderT,
                                    withReaderT)
 import qualified Data.Atomics.Counter as Counter (incrCounter, newCounter)
 import Data.Int (Int32)
-import Data.Maybe (fromMaybe, maybe)
+import Data.Maybe (fromMaybe, isJust, maybe)
 import Data.Proxy (Proxy(..))
 import qualified Data.Vector as BV (Vector, filter, foldM', imapM_, length, map,
                                     mapM, mapM_, snoc, take, unsafeFreeze)
@@ -68,6 +68,10 @@ newUIEventDispatcher rootValue = do
     rootCapture _ (UIEvent _ (WindowCloseEvent' _)) _  = return (Captured False)
     rootCapture _ (UIEvent _ WindowEnterEvent') _      = return (Captured False)
     rootCapture _ (UIEvent _ WindowLeaveEvent') _      = return (Captured False)
+    rootCapture entity (UIEvent _ (KeyboardEvent' _)) _
+        | uientityFocused entity = return (Captured False)
+        | isJust (uientityFocusedChild entity) = return (Captured True)
+        | otherwise = return Uncaptured
     rootCapture _ _ _                                  = return (Captured True)
     rootBubble _ (UIEvent _ (WindowCloseEvent' _)) _ = return BubbledExit
     rootBubble _ _ _ = return (Bubbled False Nothing)
@@ -100,8 +104,10 @@ element value location = e
     ch entity (UIEvent _ (MouseButtonEvent' ev)) p0
         | insideLocation (mouseButtonEventPosition ev) (uielementLocation . uientityElement $ entity) p0 = return (Captured True)
         | otherwise = return Uncaptured
-    ch _ (UIEvent _ (KeyboardEvent' _)) _     = return Uncaptured
-
+    ch entity (UIEvent _ (KeyboardEvent' _)) _
+        | uientityFocused entity = return (Captured False)
+        | isJust (uientityFocusedChild entity) = return (Captured True)
+        | otherwise = return Uncaptured
     bh _ _ _ = return (Bubbled True Nothing)
 
 root :: ReaderT (UIEventDispatcher a, UIElementId) IO b -> ReaderT (UIEventDispatcher a) IO b
