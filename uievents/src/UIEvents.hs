@@ -12,6 +12,8 @@ module UIEvents
     , setUIElementZIndex
     , setUIElementCaptureHandler
     , setUIElementBubbleHandler
+    , setFocus
+    , releaseFocus
     , setCaptureHandler
     , setBubbleHandler
     , sliceUIEntities
@@ -56,7 +58,7 @@ newUIEventDispatcher :: a -> IO (UIEventDispatcher a)
 newUIEventDispatcher rootValue = do
     let rootId = UIElementId 1
         rootElem = UIElement rootValue (Location (V2 0 0) (V2 0 0)) True 0 rootCapture rootBubble
-        rootEntity = UIEntity rootId mempty Nothing rootElem mempty False
+        rootEntity = UIEntity rootId mempty Nothing rootElem False Nothing mempty False
     store <- Component.newComponentStore 10 (Proxy :: Proxy (MBV.IOVector (UIEntity a)))
     Component.addComponent store rootId rootEntity
     counter <- Counter.newCounter 1
@@ -73,7 +75,7 @@ newUIEventDispatcher rootValue = do
 addUIElement :: UIEventDispatcher a -> UIElementId -> UIElement a -> IO UIElementId
 addUIElement dispatcher parent el = do
     elemId <- UIElementId <$> Counter.incrCounter 1 counter
-    let entity = UIEntity elemId mempty (Just parent) el mempty False
+    let entity = UIEntity elemId mempty (Just parent) el False Nothing mempty False
     Component.addComponent store elemId entity
     r <- Component.modifyComponent store (flip setUIEntityUpdated True . addChild elemId) parent
     unless r . throwIO . userError $ "element not found: " ++ show parent
@@ -170,6 +172,35 @@ setUIElementBubbleHandler :: UIEventDispatcher a -> UIElementId -> BubbleHandler
 setUIElementBubbleHandler dispatcher elemId handler = modifyUIElement' False dispatcher f elemId
     where
     f a = a { uielementBubbleHandler = handler }
+
+setFocus :: UIEventDispatcher a -> UIElementId -> IO ()
+setFocus dispatcher elemId = do
+    entity <- readComponent store elemId
+    _ <- Component.modifyComponent store (\a -> a { uientityFocused = True }) elemId
+    updateParent elemId (uientityParent entity)
+    where
+    store = uieventDispatcherElements dispatcher
+    updateParent cid (Just pid) = do
+        parent <- readComponent store pid
+        _ <- Component.modifyComponent store (\a -> a { uientityFocusedChild = Just cid }) pid
+        updateParent pid (uientityParent parent)
+    updateParent _ Nothing = return ()
+
+releaseFocus :: UIEventDispatcher a -> IO ()
+releaseFocus dispatcher = do
+    entity <- readComponent store rootId
+    go rootId (uientityFocused entity) (uientityFocusedChild entity)
+    where
+    store = uieventDispatcherElements dispatcher
+    rootId = uieventDispatcherRoot dispatcher
+    go eid _ (Just cid) = do
+        _ <- Component.modifyComponent store (\a -> a { uientityFocused = False, uientityFocusedChild = Nothing }) eid
+        c <- readComponent store cid
+        go cid (uientityFocused c) (uientityFocusedChild c)
+    go eid True Nothing = do
+        _ <- Component.modifyComponent store (\a -> a { uientityFocused = False }) eid
+        return ()
+    go _ False Nothing = return ()
 
 removeUIElement :: UIEventDispatcher a -> UIElementId -> IO ()
 removeUIElement dispatcher elemId = do

@@ -129,6 +129,8 @@ data UIEntity a = UIEntity
     , uientityChildren        :: !(BV.Vector UIElementId)
     , uientityParent          :: !(Maybe UIElementId)
     , uientityElement         :: !(UIElement a)
+    , uientityFocused         :: !Bool
+    , uientityFocusedChild    :: !(Maybe UIElementId)
     , uientityZSortedChildren :: !(BV.Vector UIElementId)
     , uientityUpdated         :: !Bool
     } deriving (Show)
