@@ -1,4 +1,1 @@
-resolver: lts-14.25
-packages:
-- ./uievents
-- ./uievents-sdl2
+stack-ghc-8.6.5.yaml
