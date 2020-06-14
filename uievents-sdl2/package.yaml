@@ -1,13 +1,11 @@
 name:                uievents-sdl2
-version:             0.1.0.0
+version:             0.2.0
 license:             BSD3
-
-description:         Please see the README on GitHub at <https://github.com/githubuser/uievents#readme>
 
 dependencies:
 - base >= 4.10 && < 5
-- uievents
-- sdl2
+- uievents >=0.2.0 && <0.3
+- sdl2 >=2.4.0.1 && <2.6
 
 ghc-options:
 - -O2
