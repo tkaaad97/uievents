@@ -1,14 +1,15 @@
 .stack
 .stack/
 .stack-work/
-*.cabal
 *~
 *.swp
 *.o
 *.so
+*.yaml.lock
 docker-compose.override.yml
 .nvimrc
 .vimrc
 .stylish-haskell.yaml
 .vscode
 .ghcid
+scripts
