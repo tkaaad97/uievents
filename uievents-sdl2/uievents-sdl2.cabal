@@ -1,0 +1,45 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 411958cce1f5d27ba97680d89452d318a25c450fa7a75c05fb89e6dc5de55a71
+
+name:           uievents-sdl2
+version:        0.2.0
+license:        BSD3
+build-type:     Simple
+
+library
+  exposed-modules:
+      UIEvents.SDL
+  other-modules:
+      Paths_uievents_sdl2
+  hs-source-dirs:
+      src
+  ghc-options: -O2 -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Wtabs
+  build-depends:
+      base >=4.10 && <5
+    , sdl2 >=2.4.0.1 && <2.6
+    , uievents >=0.2.0 && <0.3
+  default-language: Haskell2010
+
+executable example
+  main-is: Main.hs
+  other-modules:
+      Paths_uievents_sdl2
+  hs-source-dirs:
+      example
+  ghc-options: -O2 -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Wtabs -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      StateVar
+    , base >=4.10 && <5
+    , linear
+    , sdl2 >=2.4.0.1 && <2.6
+    , text
+    , transformers
+    , uievents >=0.2.0 && <0.3
+    , uievents-sdl2
+    , vector
+  default-language: Haskell2010
