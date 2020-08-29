@@ -1,19 +1,20 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 411958cce1f5d27ba97680d89452d318a25c450fa7a75c05fb89e6dc5de55a71
+-- hash: 53dca5d909f7d25eb20070938a09085cc468d448f649698a6afb930fa9ba02ca
 
 name:           uievents-sdl2
-version:        0.2.0
+version:        0.3.0
 license:        BSD3
 build-type:     Simple
 
 library
   exposed-modules:
       UIEvents.SDL
+      UIEvents.SDL.Keys
   other-modules:
       Paths_uievents_sdl2
   hs-source-dirs:
@@ -22,7 +23,7 @@ library
   build-depends:
       base >=4.10 && <5
     , sdl2 >=2.4.0.1 && <2.6
-    , uievents >=0.2.0 && <0.3
+    , uievents >=0.3.0 && <0.4
   default-language: Haskell2010
 
 executable example
@@ -39,7 +40,7 @@ executable example
     , sdl2 >=2.4.0.1 && <2.6
     , text
     , transformers
-    , uievents >=0.2.0 && <0.3
+    , uievents >=0.3.0 && <0.4
     , uievents-sdl2
     , vector
   default-language: Haskell2010
