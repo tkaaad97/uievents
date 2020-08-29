@@ -2,3 +2,6 @@ resolver: lts-14.27
 packages:
   - uievents
   - uievents-sdl2
+  - uievents-GLFW-b
+extra-deps:
+  - chronos-1.1.1
