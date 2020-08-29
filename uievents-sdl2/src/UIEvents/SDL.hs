@@ -5,6 +5,7 @@ module UIEvents.SDL
     , pollEventsDispatch
     , waitEventDispatch
     , waitEventTimeoutDispatch
+    , module UIEvents.SDL.Keys
     ) where
 
 import Data.Foldable (foldlM)
@@ -17,6 +18,7 @@ import qualified SDL (Event(..), EventPayload(..), InputMotion(..),
                       WindowResizedEventData(..), pollEvent, pollEvents,
                       waitEvent, waitEventTimeout)
 import qualified UIEvents
+import UIEvents.SDL.Keys
 
 convertEvent :: SDL.Event -> Maybe UIEvents.UIEvent
 convertEvent (SDL.Event timestamp payload) = do
@@ -59,7 +61,7 @@ convertPayload (SDL.KeyboardEvent payload) =
             (SDL.Pressed, False) -> UIEvents.KeyPressed
             (SDL.Pressed, True)  -> UIEvents.KeyRepeated
             (SDL.Released, _)    -> UIEvents.KeyReleased
-        key = UIEvents.Keycode . SDL.unwrapKeycode . SDL.keysymKeycode . SDL.keyboardEventKeysym $ payload
+        key = UIEvents.Key . SDL.unwrapKeycode . SDL.keysymKeycode . SDL.keyboardEventKeysym $ payload
         payload' = UIEvents.KeyboardEvent
             { UIEvents.keyboardEventType = eventType
             , UIEvents.keyboardEventKey = key

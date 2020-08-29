@@ -21,7 +21,7 @@ module UIEvents.Types
     , MouseButton(..)
     , KeyboardEvent(..)
     , KeyboardEventType(..)
-    , Keycode(..)
+    , Key(..)
     ) where
 
 import Data.Atomics.Counter (AtomicCounter)
@@ -88,11 +88,11 @@ data MouseButtonEventType =
 
 data KeyboardEvent = KeyboardEvent
     { keyboardEventType :: !KeyboardEventType
-    , keyboardEventKey  :: !Keycode
+    , keyboardEventKey  :: !Key
     } deriving (Show, Eq)
 
-newtype Keycode = Keycode
-    { unKeycode :: Int32
+newtype Key = Key
+    { unKey :: Int32
     } deriving (Show, Eq)
 
 data KeyboardEventType =
