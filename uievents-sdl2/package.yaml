@@ -25,6 +25,7 @@ executables:
   example:
     main:                Main.hs
     source-dirs:
+    - ../example-common
     - example
     ghc-options:
     - -threaded

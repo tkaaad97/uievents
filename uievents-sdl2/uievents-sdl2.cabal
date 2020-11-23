@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 53dca5d909f7d25eb20070938a09085cc468d448f649698a6afb930fa9ba02ca
+-- hash: 18c4c3ad94d96591b4067f0f579d5bde2a597df92f2d60bf79daeb9c72cef976
 
 name:           uievents-sdl2
 version:        0.3.0
@@ -29,8 +29,10 @@ library
 executable example
   main-is: Main.hs
   other-modules:
+      Example
       Paths_uievents_sdl2
   hs-source-dirs:
+      ../example-common
       example
   ghc-options: -O2 -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Wtabs -threaded -rtsopts -with-rtsopts=-N
   build-depends:
