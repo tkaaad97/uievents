@@ -21,3 +21,21 @@ ghc-options:
 
 library:
   source-dirs: src
+
+executables:
+  uievents-GLFW-b-example:
+    main:                Main.hs
+    source-dirs:
+    - ../example-common
+    - example
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - gl
+    - uievents-GLFW-b
+    - linear
+    - text
+    - transformers
+    - vector

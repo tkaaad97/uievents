@@ -22,7 +22,7 @@ library:
   source-dirs: src
 
 executables:
-  example:
+  uievents-sdl2-example:
     main:                Main.hs
     source-dirs:
     - ../example-common
