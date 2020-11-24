@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d45b9c1b76be1ed423a2a274001acfb8279800773dc71f12e7722bce891adfc5
+-- hash: c4dcda0515285765aade1fa1920bb122927dcc05779bec5a8595c71979b51e69
 
 name:           uievents-GLFW-b
 version:        0.3.0
@@ -30,6 +30,7 @@ executable uievents-GLFW-b-example
   main-is: Main.hs
   other-modules:
       Example
+      Types
       Paths_uievents_GLFW_b
   hs-source-dirs:
       ../example-common
@@ -38,9 +39,12 @@ executable uievents-GLFW-b-example
   build-depends:
       GLFW-b >=3.2.1 && <3.4
     , base >=4.10 && <5
+    , bytestring
     , chronos >=1.1 && <1.2
+    , containers
     , gl
     , linear
+    , string-qq
     , text
     , transformers
     , uievents >=0.3.0 && <0.4

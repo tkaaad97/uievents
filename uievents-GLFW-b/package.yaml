@@ -33,9 +33,12 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
+    - bytestring
+    - containers
     - gl
-    - uievents-GLFW-b
     - linear
+    - string-qq
     - text
     - transformers
+    - uievents-GLFW-b
     - vector
