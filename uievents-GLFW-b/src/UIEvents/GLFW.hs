@@ -4,12 +4,7 @@ module UIEvents.GLFW
 
 import qualified Chronos as Time (Time(..), now)
 import Data.IORef (IORef, atomicModifyIORef')
-import qualified Graphics.UI.GLFW as GLFW (CursorState, Error, Joystick,
-                                           JoystickState, Key, KeyState,
-                                           ModifierKeys, Monitor,
-                                           MonitorCallback, MonitorState,
-                                           MouseButton, MouseButtonState,
-                                           Window, WindowPosCallback)
+import qualified Graphics.UI.GLFW as GLFW
 import qualified UIEvents
 
 data GLFWEventPayload =
@@ -57,34 +52,92 @@ enqueueWindowPosEvent :: IORef [GLFWEvent] -> GLFW.WindowPosCallback
 enqueueWindowPosEvent queue window x y =
     enqueuePayloadNow queue $ GLFWWindowPosEvent window x y
 
-{-
-enqueueWindowPosEvent
-enqueueWindowSizeEvent
-enqueueWindowCloseEvent
-enqueueWindowRefreshEvent
-enqueueWindowFocusEvent
-enqueueWindowIconifyEvent
-enqueueFramebufferSizeEvent
-enqueueWindowContentScaleEvent
-enqueueWindowMaximizeEvent
-enqueueKeyEvent
-enqueueCharEvent
-enqueueCharModsEvent
-enqueueMouseButtonEvent
-enqueueCursorPosEvent
-enqueueCursorEnterEvent
-enqueueScrollEvent
-enqueueDropEvent
-enqueueJoystickEvent
+enqueueWindowSizeEvent :: IORef [GLFWEvent] -> GLFW.WindowSizeCallback
+enqueueWindowSizeEvent queue window w h =
+    enqueuePayloadNow queue $ GLFWWindowSizeEvent window w h
 
-setCallbacks :: IORef [UIEvent] -> IO ()
-setCallbacks eventQueue = do
-    GLFW.setMonitorCallback (Just (monitorCallback eventQueue))
-    GLFW.setMonitorCallback (Just (monitorCallback eventQueue))
-    GLFW.setMonitorCallback (Just (monitorCallback eventQueue))
-    GLFW.setMonitorCallback (Just (monitorCallback eventQueue))
-    GLFW.setMonitorCallback (Just (monitorCallback eventQueue))
-    GLFW.setMonitorCallback (Just (monitorCallback eventQueue))
-    GLFW.setMonitorCallback (Just (monitorCallback eventQueue))
-    GLFW.setMonitorCallback (Just (monitorCallback eventQueue))
--}
+enqueueWindowCloseEvent :: IORef [GLFWEvent] -> GLFW.WindowCloseCallback
+enqueueWindowCloseEvent queue window =
+    enqueuePayloadNow queue $ GLFWWindowCloseEvent window
+
+enqueueWindowRefreshEvent :: IORef [GLFWEvent] -> GLFW.WindowCloseCallback
+enqueueWindowRefreshEvent queue window =
+    enqueuePayloadNow queue $ GLFWWindowRefreshEvent window
+
+enqueueWindowFocusEvent :: IORef [GLFWEvent] -> GLFW.WindowFocusCallback
+enqueueWindowFocusEvent queue window focus =
+    enqueuePayloadNow queue $ GLFWWindowFocusEvent window focus
+
+enqueueWindowIconifyEvent :: IORef [GLFWEvent] -> GLFW.WindowIconifyCallback
+enqueueWindowIconifyEvent queue window iconify =
+    enqueuePayloadNow queue $ GLFWWindowFocusEvent window iconify
+
+enqueueFramebufferSizeEvent :: IORef [GLFWEvent] -> GLFW.FramebufferSizeCallback
+enqueueFramebufferSizeEvent queue window w h =
+    enqueuePayloadNow queue $ GLFWFramebufferSizeEvent window w h
+
+enqueueWindowContentScaleEvent :: IORef [GLFWEvent] -> GLFW.WindowContentScaleCallback
+enqueueWindowContentScaleEvent queue window sx sy =
+    enqueuePayloadNow queue $ GLFWWindowContentScaleEvent window sx sy
+
+enqueueWindowMaximizeEvent :: IORef [GLFWEvent] -> GLFW.WindowMaximizeCallback
+enqueueWindowMaximizeEvent queue window maximize =
+    enqueuePayloadNow queue $ GLFWWindowMaximizeEvent window maximize
+
+enqueueKeyEvent :: IORef [GLFWEvent] -> GLFW.KeyCallback
+enqueueKeyEvent queue window key scan keyState modifierKeys =
+    enqueuePayloadNow queue $ GLFWKeyEvent window key scan keyState modifierKeys
+
+enqueueCharEvent :: IORef [GLFWEvent] -> GLFW.CharCallback
+enqueueCharEvent queue window char =
+    enqueuePayloadNow queue $ GLFWCharEvent window char
+
+enqueueCharModsEvent :: IORef [GLFWEvent] -> GLFW.CharModsCallback
+enqueueCharModsEvent queue window char modifierKeys =
+    enqueuePayloadNow queue $ GLFWCharModsEvent window char modifierKeys
+
+enqueueMouseButtonEvent :: IORef [GLFWEvent] -> GLFW.MouseButtonCallback
+enqueueMouseButtonEvent queue window button state modifierKeys =
+    enqueuePayloadNow queue $ GLFWMouseButtonEvent window button state modifierKeys
+
+enqueueCursorPosEvent :: IORef [GLFWEvent] -> GLFW.CursorPosCallback
+enqueueCursorPosEvent queue window x y =
+    enqueuePayloadNow queue $ GLFWCursorPosEvent window x y
+
+enqueueCursorEnterEvent :: IORef [GLFWEvent] -> GLFW.CursorEnterCallback
+enqueueCursorEnterEvent queue window state =
+    enqueuePayloadNow queue $ GLFWCursorEnterEvent window state
+
+enqueueScrollEvent :: IORef [GLFWEvent] -> GLFW.ScrollCallback
+enqueueScrollEvent queue window x y =
+    enqueuePayloadNow queue $ GLFWScrollEvent window x y
+
+enqueueDropEvent :: IORef [GLFWEvent] -> GLFW.DropCallback
+enqueueDropEvent queue window paths =
+    enqueuePayloadNow queue $ GLFWDropEvent window paths
+
+enqueueJoystickEvent :: IORef [GLFWEvent] -> GLFW.JoystickCallback
+enqueueJoystickEvent queue joystick state =
+    enqueuePayloadNow queue $ GLFWJoystickEvent joystick state
+
+setCallbacks :: IORef [GLFWEvent] -> GLFW.Window -> IO ()
+setCallbacks q w = do
+    GLFW.setMonitorCallback (Just (enqueueMonitorEvent q))
+    GLFW.setWindowPosCallback w (Just (enqueueWindowPosEvent q))
+    GLFW.setWindowSizeCallback w (Just (enqueueWindowSizeEvent q))
+    GLFW.setWindowCloseCallback w (Just (enqueueWindowCloseEvent q))
+    GLFW.setWindowRefreshCallback w (Just (enqueueWindowRefreshEvent q))
+    GLFW.setWindowFocusCallback w (Just (enqueueWindowFocusEvent q))
+    GLFW.setWindowIconifyCallback w (Just (enqueueWindowIconifyEvent q))
+    GLFW.setFramebufferSizeCallback w (Just (enqueueFramebufferSizeEvent q))
+    GLFW.setWindowContentScaleCallback w (Just (enqueueWindowContentScaleEvent q))
+    GLFW.setWindowMaximizeCallback w (Just (enqueueWindowMaximizeEvent q))
+    GLFW.setKeyCallback w (Just (enqueueKeyEvent q))
+    GLFW.setCharCallback w (Just (enqueueCharEvent q))
+    GLFW.setCharModsCallback w (Just (enqueueCharModsEvent q))
+    GLFW.setMouseButtonCallback w (Just (enqueueMouseButtonEvent q))
+    GLFW.setCursorPosCallback w (Just (enqueueCursorPosEvent q))
+    GLFW.setCursorEnterCallback w (Just (enqueueCursorEnterEvent q))
+    GLFW.setScrollCallback w (Just (enqueueScrollEvent q))
+    GLFW.setDropCallback w (Just (enqueueDropEvent q))
+    GLFW.setJoystickCallback (Just (enqueueJoystickEvent q))

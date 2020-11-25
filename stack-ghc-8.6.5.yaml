@@ -4,4 +4,6 @@ packages:
   - uievents-sdl2
   - uievents-GLFW-b
 extra-deps:
+  - GLFW-b-3.3.0.0
+  - bindings-GLFW-3.3.2.0
   - chronos-1.1.1
