@@ -2,29 +2,52 @@
 {-# LANGUAGE QuasiQuotes       #-}
 module Main where
 
+import Control.Concurrent (threadDelay)
 import Control.Exception (throwIO)
 import Control.Monad (unless, when)
+import Data.Bits ((.|.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS (useAsCString, useAsCStringLen)
+import Data.Coerce (coerce)
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap (elems, fromList, toList)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map (fromList, toList)
 import Data.String.QQ (s)
 import Data.Vector.Storable (Vector)
-import qualified Data.Vector.Storable as Vector (fromList, head, length,
-                                                 unsafeWith)
+import qualified Data.Vector.Storable as Vector (empty, freeze, fromList, head,
+                                                 length, unsafeWith)
+import qualified Data.Vector.Storable.Mutable as MVector (IOVector, grow,
+                                                          length, new, read,
+                                                          unsafeWith, write)
+import Data.Word (Word8)
 import Example (createUI)
 import qualified Foreign (Storable(..), alloca, castPtr, plusPtr, with)
 import qualified Graphics.GL as GL
 import qualified Graphics.UI.GLFW as GLFW
-import Linear (V3(..), V4(..))
+import Linear (M44, V2(..), V3(..), V4(..))
+import qualified Linear (lookAt, ortho)
 import System.Exit (exitSuccess)
 import Types
+import qualified UIEvents (DispatchResult(..), Location(..), UIElement(..),
+                           UIEntity(..), UIEventDispatcher, foldUIEntities)
 
-data Handle = Handle !GL.GLuint ![GL.GLuint] !GL.GLuint !GL.GLuint
+data RenderInfo = RenderInfo
+    { riProgram       :: !GL.GLuint
+    , riPrimitiveType :: !GL.GLenum
+    , riVertexArray   :: !GL.GLuint
+    , riVertexBuffer  :: !GL.GLuint
+    , riVertexVector  :: !(MVector.IOVector Vertex, Int)
+    , riPVMat         :: !(GL.GLint, M44 Float)
+    }
 
-data Vertex = Vertex (V3 GL.GLfloat) (V4 GL.GLfloat)
+data App = App
+    { appMeshRenderInfo    :: !RenderInfo
+    , appOutlineRenderInfo :: !RenderInfo
+    , appEventDispatcher   :: !(UIEvents.UIEventDispatcher (V4 Word8))
+    }
+
+data Vertex = Vertex !(V3 GL.GLfloat) !(V4 Word8)
     deriving (Show, Eq)
 
 instance Foreign.Storable Vertex where
@@ -40,43 +63,156 @@ instance Foreign.Storable Vertex where
         Foreign.poke (Foreign.castPtr ptr `Foreign.plusPtr` Foreign.sizeOf p) c
 
 main :: IO ()
-main = withWindow "uievent-GLFW-b:example" (truncate windowWidth, truncate windowHeight) $ \w -> do
-    _ <- createUI windowWidth windowHeight
-    return ()
+main = withWindow "uievent-GLFW-b:example" (truncate windowWidth, truncate windowHeight) $ \w -> loop w =<< initialize w
     where
     windowWidth = 1200
     windowHeight = 800
 
-    vertices :: Vector Vertex
-    vertices = Vector.fromList
-        [ Vertex (V3 0 0 0) (V4 1 0 0 1)
-        , Vertex (V3 1 1 0) (V4 0 1 0 1)
-        , Vertex (V3 0 1 0) (V4 0 0 1 1)
-        , Vertex (V3 1 1 0) (V4 0 1 0 1)
-        , Vertex (V3 0 0 0) (V4 1 0 0 1)
-        , Vertex (V3 1 0 0) (V4 1 1 1 1)
-        ]
+    initialize windows = do
+        d <- createUI windowWidth windowHeight
+        program <- mkProgram
+        meshRenderInfo <- mkMeshRenderInfo d (windowWidth, windowHeight) program
+        outlineRenderInfo <- mkOutlineRenderInfo d (windowWidth, windowHeight) program
+        GL.glViewport 0 0 (floor windowWidth) (floor windowHeight)
+        GL.glDisable GL.GL_CULL_FACE
+        GL.glEnable GL.GL_DEPTH_TEST
+        GL.glDepthMask GL.GL_TRUE
+        GL.glDepthFunc GL.GL_LESS
+        return (App meshRenderInfo outlineRenderInfo d)
 
+    loop window (App mesh outline d) = do
+        meshVec <- mkVertexVector d (fst . riVertexVector $ mesh)
+        outlineVec <- mkOutlineVertexVector d (fst . riVertexVector $ outline)
+        let mesh' = mesh { riVertexVector = meshVec }
+            outline' = outline { riVertexVector = outlineVec }
+        renderStart
+        render outline'
+        render mesh'
+        GLFW.swapBuffers window
+        GLFW.pollEvents
+        threadDelay . round $ 1E+6 / 60
+        loop window (App mesh' outline' d)
+
+    renderStart = do
+        GL.glClearColor 1 1 1 1
+        GL.glClear (GL.GL_COLOR_BUFFER_BIT .|. GL.GL_DEPTH_BUFFER_BIT)
+
+    render (RenderInfo program primitive vertexArray vertexBuffer (vec, len) (uniformLocation, pvm)) = do
+        let byteSize = len * Foreign.sizeOf (undefined :: Vertex)
+        MVector.unsafeWith vec $ \ptr -> GL.glNamedBufferData vertexBuffer (fromIntegral byteSize) (Foreign.castPtr ptr) GL.GL_DYNAMIC_DRAW
+        GL.glUseProgram program
+        Foreign.with pvm $
+            GL.glUniformMatrix4fv (fromIntegral uniformLocation) 1 GL.GL_TRUE . coerce
+        GL.glBindVertexArray vertexArray
+        GL.glDrawArrays primitive 0 (fromIntegral len)
+        GL.glBindVertexArray 0
+        GL.glUseProgram 0
+
+mkMeshRenderInfo :: UIEvents.UIEventDispatcher (V4 Word8) -> (Double, Double) -> GL.GLuint -> IO RenderInfo
+mkMeshRenderInfo dispatcher (windowWidth, windowHeight) program = do
+    (v, len) <- mkVertexVector dispatcher =<< MVector.new 200
+    vertices <- Vector.freeze v
+    let bufferSources = IntMap.fromList
+            [(0, (BufferSource vertices GL.GL_DYNAMIC_DRAW, BindBufferSetting 0 (Foreign.sizeOf (undefined :: Vertex))))]
+    bufferBindings <- mapM mkBufferBinding bufferSources
+    let buffer = head . map fst . IntMap.elems $ bufferBindings
+    GL.glUseProgram program
+    va <- mkVertexArray attribBindings bufferBindings Nothing program
+    ul <- getUniformLocation program "projectionViewMatrix"
+    let pvm = Linear.ortho 0 (realToFrac windowWidth) (realToFrac windowHeight) 0 (-1) 1
+    GL.glUseProgram 0
+    return (RenderInfo program GL.GL_TRIANGLES va buffer (v, len) (fromIntegral ul, pvm))
+    where
     attribBindings = Map.fromList
         [("position", AttribBinding 0 (AttribFormat 3 GL.GL_FLOAT False 0))
-        ,("color", AttribBinding 0 (AttribFormat 4 GL.GL_FLOAT False 12))
+        ,("color", AttribBinding 0 (AttribFormat 4 GL.GL_UNSIGNED_BYTE True 12))
         ]
-
-    bufferSources = IntMap.fromList
-        [(0, (BufferSource vertices GL.GL_STATIC_READ, BindBufferSetting 0 (Foreign.sizeOf (undefined :: Vertex))))]
-
     mkBufferBinding (source, setting) = do
         buffer <- mkBuffer source
         return (buffer, setting)
 
+mkOutlineRenderInfo :: UIEvents.UIEventDispatcher (V4 Word8) -> (Double, Double) -> GL.GLuint -> IO RenderInfo
+mkOutlineRenderInfo dispatcher (windowWidth, windowHeight) program = do
+    (v, len) <- mkOutlineVertexVector dispatcher =<< MVector.new 200
+    vertices <- Vector.freeze v
+    let bufferSources = IntMap.fromList
+            [(0, (BufferSource vertices GL.GL_DYNAMIC_DRAW, BindBufferSetting 0 (Foreign.sizeOf (undefined :: Vertex))))]
+    bufferBindings <- mapM mkBufferBinding bufferSources
+    let buffer = head . map fst . IntMap.elems $ bufferBindings
+    GL.glUseProgram program
+    va <- mkVertexArray attribBindings bufferBindings Nothing program
+    ul <- getUniformLocation program "projectionViewMatrix"
+    let pvm = Linear.ortho 0 (realToFrac windowWidth) (realToFrac windowHeight) 0 (-1) 1
+    GL.glUseProgram 0
+    return (RenderInfo program GL.GL_LINES va buffer (v, len) (fromIntegral ul, pvm))
+    where
+    attribBindings = Map.fromList
+        [("position", AttribBinding 0 (AttribFormat 3 GL.GL_FLOAT False 0))
+        ,("color", AttribBinding 0 (AttribFormat 4 GL.GL_UNSIGNED_BYTE True 12))
+        ]
+    mkBufferBinding (source, setting) = do
+        buffer <- mkBuffer source
+        return (buffer, setting)
 
-    initialize = do
-        program <- mkProgram
-        bufferBindings <- mapM mkBufferBinding bufferSources
-        let buffers = map fst . IntMap.elems $ bufferBindings
-        va <- mkVertexArray attribBindings bufferBindings Nothing program
-        ul <- getUniformLocation program "projectionViewMatrix"
-        return (Handle program buffers va ul)
+mkVertexVector :: UIEvents.UIEventDispatcher (V4 Word8) -> MVector.IOVector Vertex -> IO (MVector.IOVector Vertex, Int)
+mkVertexVector d vec = do
+    (v, len, _) <- UIEvents.foldUIEntities d go (True, V2 0 0) (vec, 0, 0)
+    return (v, len)
+    where
+    deltaZ = 1 / 256
+    go entity (True, p0) (vec, len, z)
+        | not $ UIEvents.uielementDisplay (UIEvents.uientityElement entity) = return ((False, p0), (vec, len, z))
+        | len + 6 < MVector.length vec = do
+            let element = UIEvents.uientityElement entity
+                color = UIEvents.uielementValue element
+                UIEvents.Location p1 size = UIEvents.uielementLocation element
+                V2 px py = fmap realToFrac $ p0 + p1
+                V2 sx sy = fmap realToFrac size
+                vertices =
+                    [ (len,     Vertex (V3 px py z) color)
+                    , (len + 1, Vertex (V3 (px + sx) (py + sy) z) color)
+                    , (len + 2, Vertex (V3 (px + sx) py z) color)
+                    , (len + 3, Vertex (V3 (px + sx) (py + sy) z) color)
+                    , (len + 4, Vertex (V3 px py z) color)
+                    , (len + 5, Vertex (V3 px (py + sy) z) color)
+                    ]
+            mapM_ (uncurry $ MVector.write vec) vertices
+            return ((True, p1), (vec, len + 6, z + deltaZ))
+        | otherwise = do
+            v' <- MVector.grow vec (MVector.length vec)
+            go entity (True, p0) (v', MVector.length v', z)
+    go _ a b = return (a, b)
+
+mkOutlineVertexVector :: UIEvents.UIEventDispatcher (V4 Word8) -> MVector.IOVector Vertex -> IO (MVector.IOVector Vertex, Int)
+mkOutlineVertexVector d vec = do
+    (v, len, _) <- UIEvents.foldUIEntities d go (True, V2 0 0) (vec, 0, deltaZ / 2)
+    return (v, len)
+    where
+    deltaZ = 1 / 256
+    go entity (True, p0) (vec, len, z)
+        | not $ UIEvents.uielementDisplay (UIEvents.uientityElement entity) = return ((False, p0), (vec, len, z))
+        | len + 8 < MVector.length vec = do
+            let element = UIEvents.uientityElement entity
+                lineColor = V4 32 32 32 255
+                UIEvents.Location p1 size = UIEvents.uielementLocation element
+                V2 px py = fmap realToFrac $ p0 + p1
+                V2 sx sy = fmap realToFrac size
+                vertices =
+                    [ (len,     Vertex (V3 px py z) lineColor)
+                    , (len + 1, Vertex (V3 px (py + sy) z) lineColor)
+                    , (len + 2, Vertex (V3 px (py + sy) z) lineColor)
+                    , (len + 3, Vertex (V3 (px + sx) (py + sy) z) lineColor)
+                    , (len + 4, Vertex (V3 (px + sx) (py + sy) z) lineColor)
+                    , (len + 5, Vertex (V3 (px + sx) py z) lineColor)
+                    , (len + 6, Vertex (V3 (px + sx) py z) lineColor)
+                    , (len + 7, Vertex (V3 px py z) lineColor)
+                    ]
+            mapM_ (uncurry $ MVector.write vec) vertices
+            return ((True, p1), (vec, len + 8, z + deltaZ))
+        | otherwise = do
+            v' <- MVector.grow vec (MVector.length vec)
+            go entity (True, p0) (v', MVector.length v', z)
+    go _ a b = return (a, b)
 
 withWindow :: String -> (Int, Int) -> (GLFW.Window -> IO ()) -> IO ()
 withWindow title (width, height) f = do

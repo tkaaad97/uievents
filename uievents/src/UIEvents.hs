@@ -65,7 +65,7 @@ newUIEventDispatcher rootValue = do
     return (UIEventDispatcher counter rootId store)
     where
     rootCapture _ (UIEvent _ (WindowResizeEvent' _)) _ = return (Captured False)
-    rootCapture _ (UIEvent _ (WindowCloseEvent' _)) _  = return (Captured False)
+    rootCapture _ (UIEvent _ WindowCloseEvent') _  = return (Captured False)
     rootCapture _ (UIEvent _ WindowEnterEvent') _      = return (Captured False)
     rootCapture _ (UIEvent _ WindowLeaveEvent') _      = return (Captured False)
     rootCapture entity (UIEvent _ (KeyboardEvent' _)) _
@@ -73,7 +73,7 @@ newUIEventDispatcher rootValue = do
         | isJust (uientityFocusedChild entity) = return (Captured True)
         | otherwise = return Uncaptured
     rootCapture _ _ _                                  = return (Captured True)
-    rootBubble _ (UIEvent _ (WindowCloseEvent' _)) _ = return BubbledExit
+    rootBubble _ (UIEvent _ WindowCloseEvent') _ = return BubbledExit
     rootBubble _ _ _ = return (Bubbled False Nothing)
 
 addUIElement :: UIEventDispatcher a -> UIElementId -> UIElement a -> IO UIElementId
@@ -95,7 +95,7 @@ element value location = e
     where
     e = UIElement value location True 0 ch bh
     ch _ (UIEvent _ (WindowResizeEvent' _)) _ = return Uncaptured
-    ch _ (UIEvent _ (WindowCloseEvent' _)) _  = return Uncaptured
+    ch _ (UIEvent _ WindowCloseEvent') _  = return Uncaptured
     ch _ (UIEvent _ WindowEnterEvent') _  = return Uncaptured
     ch _ (UIEvent _ WindowLeaveEvent') _  = return Uncaptured
     ch entity (UIEvent _ (MouseMotionEvent' ev)) p0

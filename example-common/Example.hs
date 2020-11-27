@@ -39,7 +39,7 @@ createUI windowWidth windowHeight = do
         rootBubble _ (UIEvents.UIEvent _ UIEvents.WindowLeaveEvent') _ = do
             writeIORef mouseDownOn Nothing
             return (UIEvents.Bubbled True Nothing)
-        rootBubble _ (UIEvents.UIEvent _ (UIEvents.WindowCloseEvent' _)) _ = return UIEvents.BubbledExit
+        rootBubble _ (UIEvents.UIEvent _ UIEvents.WindowCloseEvent') _ = return UIEvents.BubbledExit
         rootBubble _ _ _ =
             return (UIEvents.Bubbled False Nothing)
         bubbleHandler entity (UIEvents.UIEvent _ payload @ (UIEvents.MouseButtonEvent' _)) _ = do
@@ -125,5 +125,5 @@ createUI windowWidth windowHeight = do
         forM [0..(n-1)] $ \i -> do
             card <- MBV.read store i
             let pos = cardPosition card
-                element = UIEvents.element (V4 255 255 255 255 :: V4 Word8) (UIEvents.Location pos (V2 100 200))
+                element = UIEvents.element (V4 180 180 180 255 :: V4 Word8) (UIEvents.Location pos (V2 100 200))
             UIEvents.addUIElement dispatcher parent element

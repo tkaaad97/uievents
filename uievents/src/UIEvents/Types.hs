@@ -14,7 +14,6 @@ module UIEvents.Types
     , UIElement(..)
     , UIEventDispatcher(..)
     , WindowResizeEvent(..)
-    , WindowCloseEvent(..)
     , MouseMotionEvent(..)
     , MouseButtonEvent(..)
     , MouseButtonEventType(..)
@@ -47,7 +46,7 @@ data UIEvent = UIEvent
 
 data UIEventPayload =
     WindowResizeEvent' WindowResizeEvent |
-    WindowCloseEvent' WindowCloseEvent |
+    WindowCloseEvent' |
     WindowEnterEvent' |
     WindowLeaveEvent' |
     MouseMotionEvent' MouseMotionEvent |
@@ -58,9 +57,6 @@ data UIEventPayload =
 newtype WindowResizeEvent = WindowResizeEvent
     { windowResizeEventSize :: V2 Int32
     } deriving (Show, Eq)
-
-data WindowCloseEvent = WindowCloseEvent
-    deriving (Show, Eq)
 
 data MouseMotionEvent = MouseMotionEvent
     { mouseMotionEventPosition :: !(V2 Int32)
