@@ -1,13 +1,19 @@
 module UIEvents.GLFW
-    (
+    ( EventQueue
+    , setCallbacks
+    , pollEventDispatch
+    , pollEventsDispatch
     ) where
 
 import qualified Chronos as Time (Time(..), now)
-import Control.Monad (filterM)
+import Control.Monad (filterM, foldM)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
+import Data.List (uncons)
 import qualified Graphics.UI.GLFW as GLFW
 import Linear (V2(..))
 import qualified UIEvents
+
+newtype EventQueue = EventQueue (IORef [UIEvents.UIEvent])
 
 fromGLFWMouseButton :: GLFW.MouseButton -> UIEvents.MouseButton
 fromGLFWMouseButton GLFW.MouseButton'1 = UIEvents.MouseButtonLeft
@@ -66,7 +72,7 @@ enqueueMouseButtonEvent queue window button state _ = do
 
 enqueueCursorPosEvent :: IORef [UIEvents.UIEvent] -> IORef (Double, Double) -> GLFW.CursorPosCallback
 enqueueCursorPosEvent queue posRef window x y = do
-    (px, py) <- readIORef posRef
+    (px, py) <- atomicModifyIORef' posRef $ \prev -> ((x, y), prev)
     let delta = V2 (round (x - px)) (round (y - py))
     buttons <- filterM (fmap (== GLFW.MouseButtonState'Pressed) . GLFW.getMouseButton window) [GLFW.MouseButton'1, GLFW.MouseButton'2, GLFW.MouseButton'3]
     enqueuePayloadNow queue . UIEvents.MouseMotionEvent' $ UIEvents.MouseMotionEvent (V2 (round x) (round y)) delta (map fromGLFWMouseButton buttons)
@@ -77,8 +83,9 @@ enqueueCursorEnterEvent queue window state =
     enqueuePayloadNow queue $ GLFWCursorEnterEvent window state
 -}
 
-setCallbacks :: IORef [UIEvents.UIEvent] -> GLFW.Window -> IO ()
-setCallbacks q w = do
+setCallbacks :: GLFW.Window -> IO EventQueue
+setCallbacks w = do
+    q <- newIORef []
     GLFW.setWindowSizeCallback w (Just (enqueueWindowSizeEvent q))
     GLFW.setWindowCloseCallback w (Just (enqueueWindowCloseEvent q))
     GLFW.setWindowFocusCallback w (Just (enqueueWindowFocusEvent q))
@@ -86,3 +93,23 @@ setCallbacks q w = do
     GLFW.setMouseButtonCallback w (Just (enqueueMouseButtonEvent q))
     posRef <- newIORef =<< GLFW.getCursorPos w
     GLFW.setCursorPosCallback w (Just (enqueueCursorPosEvent q posRef))
+    return (EventQueue q)
+
+pollEventDispatch :: EventQueue -> UIEvents.UIEventDispatcher a -> IO (Maybe UIEvents.DispatchResult)
+pollEventDispatch (EventQueue q) dispatcher =
+    dispatch =<< atomicModifyIORef' q pop
+    where
+    pop es =
+        case uncons (reverse es) of
+            Just (x, xs) -> (reverse xs, Just x)
+            Nothing      -> (es, Nothing)
+    dispatch Nothing  = return Nothing
+    dispatch (Just e) = Just <$> UIEvents.dispatchUIEvent dispatcher e
+
+pollEventsDispatch :: EventQueue -> UIEvents.UIEventDispatcher a -> IO UIEvents.DispatchResult
+pollEventsDispatch (EventQueue q) dispatcher =
+    foldM go UIEvents.DispatchContinue =<< atomicModifyIORef' q popAll
+    where
+    popAll es = ([], reverse es)
+    go UIEvents.DispatchExit _     = return UIEvents.DispatchExit
+    go UIEvents.DispatchContinue e = UIEvents.dispatchUIEvent dispatcher e

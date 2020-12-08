@@ -30,7 +30,10 @@ import qualified Linear (lookAt, ortho)
 import System.Exit (exitSuccess)
 import Types
 import qualified UIEvents (DispatchResult(..), Location(..), UIElement(..),
-                           UIEntity(..), UIEventDispatcher, foldUIEntities)
+                           UIEntity(..), UIEvent, UIEventDispatcher,
+                           foldUIEntities)
+import qualified UIEvents.GLFW as UIEvents (EventQueue, pollEventsDispatch,
+                                            setCallbacks)
 
 data RenderInfo = RenderInfo
     { riProgram       :: !GL.GLuint
@@ -44,6 +47,7 @@ data RenderInfo = RenderInfo
 data App = App
     { appMeshRenderInfo    :: !RenderInfo
     , appOutlineRenderInfo :: !RenderInfo
+    , appEventQueue        :: !UIEvents.EventQueue
     , appEventDispatcher   :: !(UIEvents.UIEventDispatcher (V4 Word8))
     }
 
@@ -68,7 +72,7 @@ main = withWindow "uievent-GLFW-b:example" (truncate windowWidth, truncate windo
     windowWidth = 1200
     windowHeight = 800
 
-    initialize windows = do
+    initialize window = do
         d <- createUI windowWidth windowHeight
         program <- mkProgram
         meshRenderInfo <- mkMeshRenderInfo d (windowWidth, windowHeight) program
@@ -78,9 +82,10 @@ main = withWindow "uievent-GLFW-b:example" (truncate windowWidth, truncate windo
         GL.glEnable GL.GL_DEPTH_TEST
         GL.glDepthMask GL.GL_TRUE
         GL.glDepthFunc GL.GL_LESS
-        return (App meshRenderInfo outlineRenderInfo d)
+        q <- UIEvents.setCallbacks window
+        return (App meshRenderInfo outlineRenderInfo q d)
 
-    loop window (App mesh outline d) = do
+    loop window (App mesh outline q d) = do
         meshVec <- mkVertexVector d (fst . riVertexVector $ mesh)
         outlineVec <- mkOutlineVertexVector d (fst . riVertexVector $ outline)
         let mesh' = mesh { riVertexVector = meshVec }
@@ -91,7 +96,10 @@ main = withWindow "uievent-GLFW-b:example" (truncate windowWidth, truncate windo
         GLFW.swapBuffers window
         GLFW.pollEvents
         threadDelay . round $ 1E+6 / 60
-        loop window (App mesh' outline' d)
+        r <- UIEvents.pollEventsDispatch q d
+        case r of
+            UIEvents.DispatchContinue -> loop window (App mesh' outline' q d)
+            UIEvents.DispatchExit     -> return ()
 
     renderStart = do
         GL.glClearColor 1 1 1 1
