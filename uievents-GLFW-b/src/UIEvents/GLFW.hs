@@ -7,7 +7,7 @@ module UIEvents.GLFW
 
 import qualified Chronos as Time (Time(..), now)
 import Control.Monad (filterM, foldM)
-import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
+import Data.IORef (IORef, atomicModifyIORef', newIORef)
 import Data.List (uncons)
 import qualified Graphics.UI.GLFW as GLFW
 import Linear (V2(..))
@@ -57,8 +57,7 @@ enqueueWindowFocusEvent queue _ focus
     | otherwise = enqueuePayloadNow queue UIEvents.WindowLeaveEvent'
 
 enqueueKeyEvent :: IORef [UIEvents.UIEvent] -> GLFW.KeyCallback
-enqueueKeyEvent queue _ key scan keyState _ = do
-    scan <- GLFW.getKeyScancode key
+enqueueKeyEvent queue _ _ scan keyState _ =
     enqueuePayloadNow queue . UIEvents.KeyboardEvent' $ UIEvents.KeyboardEvent (fromGLFWKeyState keyState) (UIEvents.Key (fromIntegral scan))
 
 enqueueMouseButtonEvent :: IORef [UIEvents.UIEvent] -> GLFW.MouseButtonCallback

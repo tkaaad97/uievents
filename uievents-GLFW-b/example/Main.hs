@@ -14,11 +14,10 @@ import qualified Data.IntMap.Strict as IntMap (elems, fromList, toList)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map (fromList, toList)
 import Data.String.QQ (s)
-import Data.Vector.Storable (Vector)
-import qualified Data.Vector.Storable as Vector (empty, freeze, fromList, head,
-                                                 length, unsafeWith)
+import qualified Data.Vector.Storable as Vector (freeze, head, length,
+                                                 unsafeWith)
 import qualified Data.Vector.Storable.Mutable as MVector (IOVector, grow,
-                                                          length, new, read,
+                                                          length, new,
                                                           unsafeWith, write)
 import Data.Word (Word8)
 import Example (createUI)
@@ -26,12 +25,11 @@ import qualified Foreign (Storable(..), alloca, castPtr, plusPtr, with)
 import qualified Graphics.GL as GL
 import qualified Graphics.UI.GLFW as GLFW
 import Linear (M44, V2(..), V3(..), V4(..))
-import qualified Linear (lookAt, ortho)
+import qualified Linear (ortho)
 import System.Exit (exitSuccess)
 import Types
 import qualified UIEvents (DispatchResult(..), Location(..), UIElement(..),
-                           UIEntity(..), UIEvent, UIEventDispatcher,
-                           foldUIEntities)
+                           UIEntity(..), UIEventDispatcher, foldUIEntities)
 import qualified UIEvents.GLFW as UIEvents (EventQueue, pollEventsDispatch,
                                             setCallbacks)
 
@@ -95,7 +93,7 @@ main = withWindow "uievent-GLFW-b:example" (truncate windowWidth, truncate windo
         render mesh'
         GLFW.swapBuffers window
         GLFW.pollEvents
-        threadDelay . round $ 1E+6 / 60
+        threadDelay . round $ (1E+6 / 60 :: Double)
         r <- UIEvents.pollEventsDispatch q d
         case r of
             UIEvents.DispatchContinue -> loop window (App mesh' outline' q d)
@@ -110,7 +108,7 @@ main = withWindow "uievent-GLFW-b:example" (truncate windowWidth, truncate windo
         MVector.unsafeWith vec $ \ptr -> GL.glNamedBufferData vertexBuffer (fromIntegral byteSize) (Foreign.castPtr ptr) GL.GL_DYNAMIC_DRAW
         GL.glUseProgram program
         Foreign.with pvm $
-            GL.glUniformMatrix4fv (fromIntegral uniformLocation) 1 GL.GL_TRUE . coerce
+            GL.glUniformMatrix4fv uniformLocation 1 GL.GL_TRUE . coerce
         GL.glBindVertexArray vertexArray
         GL.glDrawArrays primitive 0 (fromIntegral len)
         GL.glBindVertexArray 0
@@ -163,9 +161,9 @@ mkOutlineRenderInfo dispatcher (windowWidth, windowHeight) program = do
         return (buffer, setting)
 
 mkVertexVector :: UIEvents.UIEventDispatcher (V4 Word8) -> MVector.IOVector Vertex -> IO (MVector.IOVector Vertex, Int)
-mkVertexVector d vec = do
-    (v, len, _) <- UIEvents.foldUIEntities d go (True, V2 0 0) (vec, 0, 0)
-    return (v, len)
+mkVertexVector d vec0 = do
+    (vec1, len, _) <- UIEvents.foldUIEntities d go (True, V2 0 0) (vec0, 0, 0)
+    return (vec1, len)
     where
     deltaZ = 1 / 256
     go entity (True, p0) (vec, len, z)
@@ -192,9 +190,9 @@ mkVertexVector d vec = do
     go _ a b = return (a, b)
 
 mkOutlineVertexVector :: UIEvents.UIEventDispatcher (V4 Word8) -> MVector.IOVector Vertex -> IO (MVector.IOVector Vertex, Int)
-mkOutlineVertexVector d vec = do
-    (v, len, _) <- UIEvents.foldUIEntities d go (True, V2 0 0) (vec, 0, deltaZ / 2)
-    return (v, len)
+mkOutlineVertexVector d vec0 = do
+    (vec1, len, _) <- UIEvents.foldUIEntities d go (True, V2 0 0) (vec0, 0, deltaZ / 2)
+    return (vec1, len)
     where
     deltaZ = 1 / 256
     go entity (True, p0) (vec, len, z)
@@ -244,8 +242,8 @@ withWindow title (width, height) f = do
           Nothing -> return ()
         GLFW.terminate
   where
-    simpleErrorCallback e s =
-        putStrLn $ unwords [show e, show s]
+    simpleErrorCallback e m =
+        putStrLn $ unwords [show e, show m]
 
 shutdown :: GLFW.WindowCloseCallback
 shutdown win = do
