@@ -94,7 +94,7 @@ setCallbacks w = do
     GLFW.setCursorPosCallback w (Just (enqueueCursorPosEvent q posRef))
     return (EventQueue q)
 
-pollEventDispatch :: EventQueue -> UIEvents.UIEventDispatcher a -> IO (Maybe UIEvents.DispatchResult)
+pollEventDispatch :: EventQueue -> UIEvents.UIEventDispatcher a b -> IO (Maybe (UIEvents.DispatchResult b))
 pollEventDispatch (EventQueue q) dispatcher =
     dispatch =<< atomicModifyIORef' q pop
     where
@@ -105,10 +105,10 @@ pollEventDispatch (EventQueue q) dispatcher =
     dispatch Nothing  = return Nothing
     dispatch (Just e) = Just <$> UIEvents.dispatchUIEvent dispatcher e
 
-pollEventsDispatch :: EventQueue -> UIEvents.UIEventDispatcher a -> IO UIEvents.DispatchResult
+pollEventsDispatch :: EventQueue -> UIEvents.UIEventDispatcher a b -> IO (UIEvents.DispatchResult b)
 pollEventsDispatch (EventQueue q) dispatcher =
     foldM go UIEvents.DispatchContinue =<< atomicModifyIORef' q popAll
     where
     popAll es = ([], reverse es)
-    go UIEvents.DispatchExit _     = return UIEvents.DispatchExit
+    go (UIEvents.DispatchExit s) _ = return (UIEvents.DispatchExit s)
     go UIEvents.DispatchContinue e = UIEvents.dispatchUIEvent dispatcher e

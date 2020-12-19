@@ -26,9 +26,9 @@ data Card = Card
     , cardAcceleration :: !(V2 Double)
     } deriving (Show, Eq)
 
-createUI :: Double -> Double -> IO (UIEvents.UIEventDispatcher (V4 Word8))
+createUI :: Double -> Double -> IO (UIEvents.UIEventDispatcher (V4 Word8) ())
 createUI windowWidth windowHeight = do
-    dispatcher <- UIEvents.newUIEventDispatcher (V4 255 255 255 255)
+    dispatcher <- UIEvents.newUIEventDispatcher (V4 255 255 255 255) ()
     mouseDownOn <- newIORef Nothing :: IO (IORef (Maybe UIEvents.UIElementId))
     let rootBubble _ (UIEvents.UIEvent _ (UIEvents.MouseButtonEvent' (UIEvents.MouseButtonEvent UIEvents.MouseButtonPressed UIEvents.MouseButtonLeft _))) target = do
             writeIORef mouseDownOn (Just target)
@@ -39,7 +39,7 @@ createUI windowWidth windowHeight = do
         rootBubble _ (UIEvents.UIEvent _ UIEvents.WindowLeaveEvent') _ = do
             writeIORef mouseDownOn Nothing
             return (UIEvents.Bubbled True Nothing)
-        rootBubble _ (UIEvents.UIEvent _ UIEvents.WindowCloseEvent') _ = return UIEvents.BubbledExit
+        rootBubble _ (UIEvents.UIEvent _ UIEvents.WindowCloseEvent') _ = return (UIEvents.BubbledExit ())
         rootBubble _ _ _ =
             return (UIEvents.Bubbled False Nothing)
         bubbleHandler entity (UIEvents.UIEvent _ payload @ (UIEvents.MouseButtonEvent' _)) _ = do

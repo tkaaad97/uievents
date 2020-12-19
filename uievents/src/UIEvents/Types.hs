@@ -107,44 +107,44 @@ data CaptureResult =
     Uncaptured
     deriving (Show, Eq)
 
-data BubbleResult a =
-    Bubbled !Bool !(Maybe (UIElement a)) |
-    BubbledExit
+data BubbleResult a b =
+    Bubbled !Bool !(Maybe (UIElement a b)) |
+    BubbledExit b
     deriving (Show)
 
-data DispatchResult =
+data DispatchResult b =
     DispatchContinue |
-    DispatchExit
+    DispatchExit !b
     deriving (Show, Eq)
 
-type CaptureHandler a = UIEntity a -> UIEvent -> V2 Double -> IO CaptureResult
-type BubbleHandler a = UIEntity a -> UIEvent -> UIElementId -> IO (BubbleResult a)
+type CaptureHandler a b = UIEntity a b -> UIEvent -> V2 Double -> IO CaptureResult
+type BubbleHandler a b = UIEntity a b -> UIEvent -> UIElementId -> IO (BubbleResult a b)
 
-data UIEntity a = UIEntity
+data UIEntity a b = UIEntity
     { uientityId              :: !UIElementId
     , uientityChildren        :: !(BV.Vector UIElementId)
     , uientityParent          :: !(Maybe UIElementId)
-    , uientityElement         :: !(UIElement a)
+    , uientityElement         :: !(UIElement a b)
     , uientityFocused         :: !Bool
     , uientityFocusedChild    :: !(Maybe UIElementId)
     , uientityZSortedChildren :: !(BV.Vector UIElementId)
     , uientityUpdated         :: !Bool
     } deriving (Show)
 
-data UIElement a = UIElement
+data UIElement a b = UIElement
     { uielementValue          :: !a
     , uielementLocation       :: !Location
     , uielementDisplay        :: !Bool
     , uielementZIndex         :: !Int
-    , uielementCaptureHandler :: !(CaptureHandler a)
-    , uielementBubbleHandler  :: !(BubbleHandler a)
+    , uielementCaptureHandler :: !(CaptureHandler a b)
+    , uielementBubbleHandler  :: !(BubbleHandler a b)
     }
 
-instance Show (UIElement a) where
+instance Show (UIElement a b) where
     show _ = "UIElement {}"
 
-data UIEventDispatcher a = UIEventDispatcher
+data UIEventDispatcher a b = UIEventDispatcher
     { uieventDispatcherElementCounter :: !AtomicCounter
     , uieventDispatcherRoot     :: !UIElementId
-    , uieventDispatcherElements :: !(Component.ComponentStore MBV.MVector UIElementId (UIEntity a))
+    , uieventDispatcherElements :: !(Component.ComponentStore MBV.MVector UIElementId (UIEntity a b))
     }

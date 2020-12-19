@@ -46,7 +46,7 @@ data App = App
     { appMeshRenderInfo    :: !RenderInfo
     , appOutlineRenderInfo :: !RenderInfo
     , appEventQueue        :: !UIEvents.EventQueue
-    , appEventDispatcher   :: !(UIEvents.UIEventDispatcher (V4 Word8))
+    , appEventDispatcher   :: !(UIEvents.UIEventDispatcher (V4 Word8) ())
     }
 
 data Vertex = Vertex !(V3 GL.GLfloat) !(V4 Word8)
@@ -97,7 +97,7 @@ main = withWindow "uievent-GLFW-b:example" (truncate windowWidth, truncate windo
         r <- UIEvents.pollEventsDispatch q d
         case r of
             UIEvents.DispatchContinue -> loop window (App mesh' outline' q d)
-            UIEvents.DispatchExit     -> return ()
+            UIEvents.DispatchExit _   -> return ()
 
     renderStart = do
         GL.glClearColor 1 1 1 1
@@ -114,7 +114,7 @@ main = withWindow "uievent-GLFW-b:example" (truncate windowWidth, truncate windo
         GL.glBindVertexArray 0
         GL.glUseProgram 0
 
-mkMeshRenderInfo :: UIEvents.UIEventDispatcher (V4 Word8) -> (Double, Double) -> GL.GLuint -> IO RenderInfo
+mkMeshRenderInfo :: UIEvents.UIEventDispatcher (V4 Word8) () -> (Double, Double) -> GL.GLuint -> IO RenderInfo
 mkMeshRenderInfo dispatcher (windowWidth, windowHeight) program = do
     (v, len) <- mkVertexVector dispatcher =<< MVector.new 200
     vertices <- Vector.freeze v
@@ -137,7 +137,7 @@ mkMeshRenderInfo dispatcher (windowWidth, windowHeight) program = do
         buffer <- mkBuffer source
         return (buffer, setting)
 
-mkOutlineRenderInfo :: UIEvents.UIEventDispatcher (V4 Word8) -> (Double, Double) -> GL.GLuint -> IO RenderInfo
+mkOutlineRenderInfo :: UIEvents.UIEventDispatcher (V4 Word8) () -> (Double, Double) -> GL.GLuint -> IO RenderInfo
 mkOutlineRenderInfo dispatcher (windowWidth, windowHeight) program = do
     (v, len) <- mkOutlineVertexVector dispatcher =<< MVector.new 200
     vertices <- Vector.freeze v
@@ -160,7 +160,7 @@ mkOutlineRenderInfo dispatcher (windowWidth, windowHeight) program = do
         buffer <- mkBuffer source
         return (buffer, setting)
 
-mkVertexVector :: UIEvents.UIEventDispatcher (V4 Word8) -> MVector.IOVector Vertex -> IO (MVector.IOVector Vertex, Int)
+mkVertexVector :: UIEvents.UIEventDispatcher (V4 Word8) () -> MVector.IOVector Vertex -> IO (MVector.IOVector Vertex, Int)
 mkVertexVector d vec0 = do
     (vec1, len, _) <- UIEvents.foldUIEntities d go (True, V2 0 0) (vec0, 0, 0)
     return (vec1, len)
@@ -189,7 +189,7 @@ mkVertexVector d vec0 = do
             go entity (True, p0) (v', MVector.length v', z)
     go _ a b = return (a, b)
 
-mkOutlineVertexVector :: UIEvents.UIEventDispatcher (V4 Word8) -> MVector.IOVector Vertex -> IO (MVector.IOVector Vertex, Int)
+mkOutlineVertexVector :: UIEvents.UIEventDispatcher (V4 Word8) () -> MVector.IOVector Vertex -> IO (MVector.IOVector Vertex, Int)
 mkOutlineVertexVector d vec0 = do
     (vec1, len, _) <- UIEvents.foldUIEntities d go (True, V2 0 0) (vec0, 0, deltaZ / 2)
     return (vec1, len)

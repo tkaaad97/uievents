@@ -45,21 +45,21 @@ import qualified UIEvents.Internal.Component as Component (ComponentStore,
 import UIEvents.Types
 
 
-updateUIEntityContent :: UIEntity a -> UIElement a -> UIEntity a
+updateUIEntityContent :: UIEntity a b -> UIElement a b -> UIEntity a b
 updateUIEntityContent entity el = modifyUIEntityElement (const el) entity
 
-setUIEntityUpdated :: UIEntity a -> Bool -> UIEntity a
+setUIEntityUpdated :: UIEntity a b -> Bool -> UIEntity a b
 setUIEntityUpdated a b = a { uientityUpdated = b }
 
-modifyUIEntityElement :: (UIElement a -> UIElement a) -> UIEntity a -> UIEntity a
+modifyUIEntityElement :: (UIElement a b -> UIElement a b) -> UIEntity a b -> UIEntity a b
 modifyUIEntityElement f entity = entity { uientityElement = f . uientityElement $ entity }
 
-newUIEventDispatcher :: a -> IO (UIEventDispatcher a)
-newUIEventDispatcher rootValue = do
+newUIEventDispatcher :: a -> b -> IO (UIEventDispatcher a b)
+newUIEventDispatcher rootValue exitStatus = do
     let rootId = UIElementId 1
         rootElem = UIElement rootValue (Location (V2 0 0) (V2 0 0)) True 0 rootCapture rootBubble
         rootEntity = UIEntity rootId mempty Nothing rootElem False Nothing mempty False
-    store <- Component.newComponentStore 10 (Proxy :: Proxy (MBV.IOVector (UIEntity a)))
+    store <- Component.newComponentStore 10 (Proxy :: Proxy (MBV.IOVector (UIEntity a b)))
     Component.addComponent store rootId rootEntity
     counter <- Counter.newCounter 1
     return (UIEventDispatcher counter rootId store)
@@ -73,10 +73,10 @@ newUIEventDispatcher rootValue = do
         | isJust (uientityFocusedChild entity) = return (Captured True)
         | otherwise = return Uncaptured
     rootCapture _ _ _                                  = return (Captured True)
-    rootBubble _ (UIEvent _ WindowCloseEvent') _ = return BubbledExit
+    rootBubble _ (UIEvent _ WindowCloseEvent') _ = return (BubbledExit exitStatus)
     rootBubble _ _ _ = return (Bubbled False Nothing)
 
-addUIElement :: UIEventDispatcher a -> UIElementId -> UIElement a -> IO UIElementId
+addUIElement :: UIEventDispatcher a b -> UIElementId -> UIElement a b -> IO UIElementId
 addUIElement dispatcher parent el = do
     elemId <- UIElementId <$> Counter.incrCounter 1 counter
     let entity = UIEntity elemId mempty (Just parent) el False Nothing mempty False
@@ -90,7 +90,7 @@ addUIElement dispatcher parent el = do
     addChild c e =
         e { uientityChildren = uientityChildren e `BV.snoc` c }
 
-element :: a -> Location -> UIElement a
+element :: a -> Location -> UIElement a b
 element value location = e
     where
     e = UIElement value location True 0 ch bh
@@ -110,39 +110,39 @@ element value location = e
         | otherwise = return Uncaptured
     bh _ _ _ = return (Bubbled True Nothing)
 
-root :: ReaderT (UIEventDispatcher a, UIElementId) IO b -> ReaderT (UIEventDispatcher a) IO b
+root :: ReaderT (UIEventDispatcher a b, UIElementId) IO c -> ReaderT (UIEventDispatcher a b) IO c
 root block = do
     rid <- reader uieventDispatcherRoot
     withReaderT (flip (,) rid) block
 
-child_ :: UIElement a -> ReaderT (UIEventDispatcher a, UIElementId) IO ()
+child_ :: UIElement a b -> ReaderT (UIEventDispatcher a b, UIElementId) IO ()
 child_ el = do
     (dispatcher, pid) <- ask
     _ <- liftIO $ addUIElement dispatcher pid el
     return ()
 
-child :: UIElement a -> ReaderT (UIEventDispatcher a, UIElementId) IO b -> ReaderT (UIEventDispatcher a, UIElementId) IO b
+child :: UIElement a b -> ReaderT (UIEventDispatcher a b, UIElementId) IO c -> ReaderT (UIEventDispatcher a b, UIElementId) IO c
 child el block = do
     (dispatcher, pid) <- ask
     eid <- liftIO $ addUIElement dispatcher pid el
     liftIO $ runReaderT block (dispatcher, eid)
 
-setCaptureHandler :: CaptureHandler a -> ReaderT (UIEventDispatcher a, UIElementId) IO ()
+setCaptureHandler :: CaptureHandler a b -> ReaderT (UIEventDispatcher a b, UIElementId) IO ()
 setCaptureHandler handler = do
     (dispatcher, eid) <- ask
     _ <- liftIO $ setUIElementCaptureHandler dispatcher eid handler
     return ()
 
-setBubbleHandler :: BubbleHandler a -> ReaderT (UIEventDispatcher a, UIElementId) IO ()
+setBubbleHandler :: BubbleHandler a b -> ReaderT (UIEventDispatcher a b, UIElementId) IO ()
 setBubbleHandler handler = do
     (dispatcher, eid) <- ask
     _ <- liftIO $ setUIElementBubbleHandler dispatcher eid handler
     return ()
 
-modifyUIElement :: UIEventDispatcher a -> (UIElement a -> UIElement a) -> UIElementId -> IO ()
+modifyUIElement :: UIEventDispatcher a b -> (UIElement a b -> UIElement a b) -> UIElementId -> IO ()
 modifyUIElement = modifyUIElement' True
 
-modifyUIElement' :: Bool -> UIEventDispatcher a -> (UIElement a -> UIElement a) -> UIElementId -> IO ()
+modifyUIElement' :: Bool -> UIEventDispatcher a b -> (UIElement a b -> UIElement a b) -> UIElementId -> IO ()
 modifyUIElement' True dispatcher f elemId = do
     before <- readComponent store elemId
     r <- Component.modifyComponent store (modifyUIEntityElement f) elemId
@@ -161,25 +161,25 @@ modifyUIElement' False dispatcher f elemId = do
     where
     store = uieventDispatcherElements dispatcher
 
-readComponent :: Component.ComponentStore MBV.MVector UIElementId (UIEntity a) -> UIElementId -> IO (UIEntity a)
+readComponent :: Component.ComponentStore MBV.MVector UIElementId (UIEntity a b) -> UIElementId -> IO (UIEntity a b)
 readComponent store eid = liftIO (maybe (throwIO . userError $ "element not found: " ++ show eid) return =<< Component.readComponent store eid)
 
-setUIElementZIndex :: UIEventDispatcher a -> UIElementId -> Int -> IO ()
+setUIElementZIndex :: UIEventDispatcher a b -> UIElementId -> Int -> IO ()
 setUIElementZIndex dispatcher elemId z = modifyUIElement dispatcher f elemId
     where
     f a = a { uielementZIndex = z }
 
-setUIElementCaptureHandler :: UIEventDispatcher a -> UIElementId -> CaptureHandler a -> IO ()
+setUIElementCaptureHandler :: UIEventDispatcher a b -> UIElementId -> CaptureHandler a b -> IO ()
 setUIElementCaptureHandler dispatcher elemId handler = modifyUIElement' False dispatcher f elemId
     where
     f a = a { uielementCaptureHandler = handler }
 
-setUIElementBubbleHandler :: UIEventDispatcher a -> UIElementId -> BubbleHandler a -> IO ()
+setUIElementBubbleHandler :: UIEventDispatcher a b -> UIElementId -> BubbleHandler a b -> IO ()
 setUIElementBubbleHandler dispatcher elemId handler = modifyUIElement' False dispatcher f elemId
     where
     f a = a { uielementBubbleHandler = handler }
 
-setFocus :: UIEventDispatcher a -> UIElementId -> IO ()
+setFocus :: UIEventDispatcher a b -> UIElementId -> IO ()
 setFocus dispatcher elemId = do
     entity <- readComponent store elemId
     _ <- Component.modifyComponent store (\a -> a { uientityFocused = True }) elemId
@@ -192,7 +192,7 @@ setFocus dispatcher elemId = do
         updateParent pid (uientityParent parent)
     updateParent _ Nothing = return ()
 
-releaseFocus :: UIEventDispatcher a -> IO ()
+releaseFocus :: UIEventDispatcher a b -> IO ()
 releaseFocus dispatcher = do
     entity <- readComponent store rootId
     go rootId (uientityFocused entity) (uientityFocusedChild entity)
@@ -208,7 +208,7 @@ releaseFocus dispatcher = do
         return ()
     go _ False Nothing = return ()
 
-removeUIElement :: UIEventDispatcher a -> UIElementId -> IO ()
+removeUIElement :: UIEventDispatcher a b -> UIElementId -> IO ()
 removeUIElement dispatcher elemId = do
     e <- maybe (throwIO . userError $ "element not found: " ++ show elemId) return =<< Component.readComponent store elemId
     BV.mapM_ (removeUIElement_ dispatcher) . uientityChildren $ e
@@ -223,7 +223,7 @@ removeUIElement dispatcher elemId = do
         , uientityUpdated = True
         }
 
-removeUIElement_ :: UIEventDispatcher a -> UIElementId -> IO ()
+removeUIElement_ :: UIEventDispatcher a b -> UIElementId -> IO ()
 removeUIElement_ dispatcher elemId = do
     e <- maybe (throwIO . userError $ "element not found: " ++ show elemId) return =<< Component.readComponent store elemId
     BV.mapM_ (removeUIElement_ dispatcher) . uientityChildren $ e
@@ -232,14 +232,14 @@ removeUIElement_ dispatcher elemId = do
     where
     store = uieventDispatcherElements dispatcher
 
-sliceUIEntities :: UIEventDispatcher a -> IO (BV.Vector (UIEntity a))
+sliceUIEntities :: UIEventDispatcher a b -> IO (BV.Vector (UIEntity a b))
 sliceUIEntities dispatcher = do
     (v, n) <- Component.unsafeGetComponentVector store
     return $ BV.take n v
     where
     store = uieventDispatcherElements dispatcher
 
-foldUIEntities :: MonadIO m => UIEventDispatcher a -> (UIEntity a -> x -> y -> m (x, y)) -> x -> y -> m y
+foldUIEntities :: MonadIO m => UIEventDispatcher a b -> (UIEntity a b -> x -> y -> m (x, y)) -> x -> y -> m y
 foldUIEntities dispatcher f x y = do
     root' <- liftIO $ readComponent store rootId
     go x y root'
@@ -252,7 +252,7 @@ foldUIEntities dispatcher f x y = do
         entities <- liftIO $ BV.mapM (readComponent store) elemIds
         BV.foldM' (go x1) y1 entities
 
-capturePhase :: UIEventDispatcher a -> UIEvent -> IO [UIEntity a]
+capturePhase :: UIEventDispatcher a b -> UIEvent -> IO [UIEntity a b]
 capturePhase dispatcher event = do
     root' <- readComponent store rootId
     fromMaybe [] <$> go (V2 0 0) [] root'
@@ -280,7 +280,7 @@ capturePhase dispatcher event = do
                 Uncaptured     -> return Nothing
         | otherwise = return Nothing
 
-getZSortedChildren :: UIEventDispatcher a -> UIEntity a -> IO (BV.Vector (UIEntity a))
+getZSortedChildren :: UIEventDispatcher a b -> UIEntity a b -> IO (BV.Vector (UIEntity a b))
 getZSortedChildren dispatcher entity
     | uientityUpdated entity = do
         entities <- MBV.new (BV.length children)
@@ -299,7 +299,7 @@ getZSortedChildren dispatcher entity
         compare (uielementZIndex . uientityElement $ e2) (uielementZIndex . uientityElement $ e1)
     updateZSortedChildren a b = a { uientityZSortedChildren = b, uientityUpdated = False }
 
-bubblePhase :: UIEventDispatcher a -> [UIEntity a] -> UIEvent -> UIElementId -> IO DispatchResult
+bubblePhase :: UIEventDispatcher a b -> [UIEntity a b] -> UIEvent -> UIElementId -> IO (DispatchResult b)
 bubblePhase _ [] _ _ = return DispatchContinue
 bubblePhase dispatcher (entity : es) event target = do
     bubbleResult <- handler entity event target
@@ -313,13 +313,13 @@ bubblePhase dispatcher (entity : es) event target = do
             if propagate
                 then bubblePhase dispatcher es event target
                 else return DispatchContinue
-        BubbledExit ->
-            return DispatchExit
+        BubbledExit b ->
+            return (DispatchExit b)
     where
     handler = uielementBubbleHandler . uientityElement $ entity
     store = uieventDispatcherElements dispatcher
 
-dispatchUIEvent :: UIEventDispatcher a -> UIEvent -> IO DispatchResult
+dispatchUIEvent :: UIEventDispatcher a b -> UIEvent -> IO (DispatchResult b)
 dispatchUIEvent dispatcher event = do
     es <- capturePhase dispatcher event
     let target = if null es

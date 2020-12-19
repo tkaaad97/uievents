@@ -62,5 +62,5 @@ main = withSDL . withWindow "uievent-sdl2:example" (truncate windowWidth, trunca
     eventLoop dispatcher renderer = do
         r <- tick dispatcher renderer
         case r of
-            UIEvents.DispatchExit -> putStrLn "dispatch exit"
-            _                     -> eventLoop dispatcher renderer
+            UIEvents.DispatchExit _ -> putStrLn "dispatch exit"
+            _                       -> eventLoop dispatcher renderer
