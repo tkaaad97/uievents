@@ -23,17 +23,16 @@ module UIEvents.Types
     , Key(..)
     ) where
 
-import Data.Atomics.Counter (AtomicCounter)
 import Data.Hashable (Hashable)
 import Data.Int (Int32, Int64)
 import qualified Data.Vector as BV (Vector)
-import qualified Data.Vector.Mutable as MBV (MVector)
+import qualified Data.Vector.Mutable as MBV (IOVector)
 import Foreign (Storable)
 import Linear (V2(..))
-import qualified UIEvents.Internal.Component as Component (ComponentStore)
 
-newtype UIElementId = UIElementId Int
-    deriving (Show, Eq, Ord, Enum, Bounded, Hashable, Num, Storable)
+newtype UIElementId = UIElementId
+    { unUIElementId :: Int
+    } deriving (Show, Eq, Ord, Enum, Bounded, Hashable, Num, Storable)
 
 newtype Timestamp = Timestamp
     { unTimestamp :: Int64
@@ -144,7 +143,6 @@ instance Show (UIElement a b) where
     show _ = "UIElement {}"
 
 data UIEventDispatcher a b = UIEventDispatcher
-    { uieventDispatcherElementCounter :: !AtomicCounter
+    { uieventDispatcherEntities :: !(MBV.IOVector (UIEntity a b))
     , uieventDispatcherRoot     :: !UIElementId
-    , uieventDispatcherElements :: !(Component.ComponentStore MBV.MVector UIElementId (UIEntity a b))
     }

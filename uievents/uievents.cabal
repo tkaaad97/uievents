@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: af10e8af0a6527980e3cdaced672e573cc36a2db7dfef8040d90cdbc1e2478ab
+-- hash: 6f22b21586967e530179f60a0d7f1cdcc39a9a39e2c7f1f6d18f5bec42f4bc8d
 
 name:           uievents
 version:        0.3.0
@@ -14,7 +14,7 @@ build-type:     Simple
 library
   exposed-modules:
       UIEvents
-      UIEvents.Internal.Component
+      UIEvents.Builder
       UIEvents.Types
   other-modules:
       Paths_uievents
@@ -22,10 +22,8 @@ library
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Wtabs
   build-depends:
-      atomic-primops >=0.8.2 && <0.9
-    , base >=4.10 && <5
+      base >=4.10 && <5
     , hashable >=1.2.7.0 && <1.4
-    , hashtables >=1.2.3.1 && <1.3
     , linear >=1.20.8 && <1.22
     , mtl >=2.2.2 && <2.3
     , transformers >=0.3.0.0 && <0.6
@@ -42,10 +40,8 @@ test-suite uievents-test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Wtabs -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      atomic-primops >=0.8.2 && <0.9
-    , base >=4.10 && <5
+      base >=4.10 && <5
     , hashable >=1.2.7.0 && <1.4
-    , hashtables >=1.2.3.1 && <1.3
     , hspec
     , linear >=1.20.8 && <1.22
     , mtl >=2.2.2 && <2.3
