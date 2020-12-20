@@ -4,10 +4,10 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6f22b21586967e530179f60a0d7f1cdcc39a9a39e2c7f1f6d18f5bec42f4bc8d
+-- hash: 70e0d916900ed2de4b558bd19bb383ee0c653765b5badfb9edb5d404c75a8839
 
 name:           uievents
-version:        0.3.0
+version:        0.4.0
 license:        BSD3
 build-type:     Simple
 

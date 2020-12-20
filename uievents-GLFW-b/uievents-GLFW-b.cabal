@@ -4,10 +4,10 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b8158ed4ff52d2d01db48740cfe2687efba12faa95214092001c31ccb35f5451
+-- hash: e663f3bab9673a5b11765326ccf856b076cc038cae395acbd5075555b270d6cc
 
 name:           uievents-GLFW-b
-version:        0.3.0
+version:        0.4.0
 license:        BSD3
 build-type:     Simple
 
@@ -26,7 +26,7 @@ library
     , bindings-GLFW >=3.3.0 && <3.4
     , chronos >=1.1 && <1.2
     , linear >=1.20.8 && <1.22
-    , uievents >=0.3.0 && <0.4
+    , uievents >=0.4.0 && <0.5
   default-language: Haskell2010
 
 executable uievents-GLFW-b-example
@@ -51,7 +51,7 @@ executable uievents-GLFW-b-example
     , string-qq
     , text
     , transformers
-    , uievents >=0.3.0 && <0.4
+    , uievents >=0.4.0 && <0.5
     , uievents-GLFW-b
     , vector
   default-language: Haskell2010
