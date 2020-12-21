@@ -4,12 +4,16 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c521ac604afb7b76a6fb494caf83bd4fdb28a650670afbc6c9288615de8d4857
+-- hash: a87f2f45a743921b4bfc814cc721428cb6776b691c86cf845e05664b05588aba
 
 name:           uievents-sdl2
 version:        0.4.0
 license:        BSD3
 build-type:     Simple
+
+flag example
+  manual: True
+  default: False
 
 library
   exposed-modules:
@@ -45,4 +49,6 @@ executable uievents-sdl2-example
     , uievents >=0.4.0 && <0.5
     , uievents-sdl2
     , vector
+  if !flag(example)
+    buildable: False
   default-language: Haskell2010

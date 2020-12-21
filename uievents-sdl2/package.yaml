@@ -29,7 +29,7 @@ library:
 executables:
   uievents-sdl2-example:
     when:
-      - condition: !flag(example)
+      - condition: "!flag(example)"
         buildable: false
     main:                Main.hs
     source-dirs:

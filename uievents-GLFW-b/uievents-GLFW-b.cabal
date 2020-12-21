@@ -4,12 +4,16 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e663f3bab9673a5b11765326ccf856b076cc038cae395acbd5075555b270d6cc
+-- hash: 7170fc8b14e9316e47d9b30cd0233c3f941d82efcaa61aa781956227140df39d
 
 name:           uievents-GLFW-b
 version:        0.4.0
 license:        BSD3
 build-type:     Simple
+
+flag example
+  manual: True
+  default: False
 
 library
   exposed-modules:
@@ -54,4 +58,6 @@ executable uievents-GLFW-b-example
     , uievents >=0.4.0 && <0.5
     , uievents-GLFW-b
     , vector
+  if !flag(example)
+    buildable: False
   default-language: Haskell2010
