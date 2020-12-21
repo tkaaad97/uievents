@@ -2,6 +2,11 @@ name:                uievents-sdl2
 version:             0.4.0
 license:             BSD3
 
+flags:
+  example:
+    manual: true
+    default: false
+
 dependencies:
 - base >= 4.10 && < 5
 - uievents >=0.4.0 && <0.5
@@ -23,6 +28,9 @@ library:
 
 executables:
   uievents-sdl2-example:
+    when:
+      - condition: !flag(example)
+        buildable: false
     main:                Main.hs
     source-dirs:
     - ../example-common

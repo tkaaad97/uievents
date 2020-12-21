@@ -46,4 +46,4 @@ jobs:
           echo 'system-ghc: true' > ~/.stack/config.yaml
           echo 'install-ghc: false' >> ~/.stack/config.yaml
           echo 'allow-different-user: true' >> ~/.stack/config.yaml
-          stack build
+          stack build --flag uievents-sdl2:example --flag uievents-GLFW-b:example
